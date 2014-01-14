@@ -26,8 +26,14 @@ Ein Diagramm zur Verdrahrung folgt hoffentlich später.
 
 
 Bei der endgültigen Montage am Kopter soll der Arduino Uno durch einen
-Arduino Pro Mini zu ersetzt werden. Zudem sollen 6 Ringe - einer
+Arduino Pro Mini ersetzt werden. Zudem sollen 6 Ringe - einer
 pro Arm - genutzt werden.
+
+Hier noch zwei Videos, welche verschiedene Stadien des Prototypes zeigen:
+http://youtu.be/-5hrLwAgFbE
+http://youtu.be/aNY-5sn9t78
+
+
 
 Quellenangabe:
 Die Inspiration zu diesem Projekt stammt von https://github.com/diogeneyves/dji-naza-led
