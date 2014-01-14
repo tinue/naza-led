@@ -25,51 +25,51 @@
         <section id="downloads" class="clearfix">
           <a href="https://github.com/tinue/naza-led/zipball/master" id="download-zip" class="button"><span>Download .zip</span></a>
           <a href="https://github.com/tinue/naza-led/tarball/master" id="download-tar-gz" class="button"><span>Download .tar.gz</span></a>
-          <a href="https://github.com/tinue/naza-led" id="view-on-github" class="button"><span>View on GitHub</span></a>
+          <a href="https://github.com/tinue/naza-led" id="view-on-github" class="button"><span>Gucken GitHub</span></a>
         </section>
 
         <hr>
 
         <section id="main_content">
           <h3>
-<a name="welcome-to-github-pages" class="anchor" href="#welcome-to-github-pages"><span class="octicon octicon-link"></span></a>Welcome to GitHub Pages.</h3>
+<a name="welcome-to-project-pages" class="anchor" href="#welcome-to-project-pages"><span class="octicon octicon-link"></span></a>Willkommen beim Naza LED Projekt</h3>
+<p>Der DJI Flamewheel F550 hat keine Beleuchtung. Der Kopter hat eine LED, welche den Status der Naza anzeigt, z.B. Flugmodus, Anzahl sichtbarer Satelliten, oder zu wenig Spannung im Akku.</p>
+<p>Diese LED ist zwar hell, aber trotzdem kaum mhr sichtbar sobald der Kopter etwas weg ist. Anders als beim Phantom hat der Kopter auch keine Flug-LEDs um vorn und hinten zu unterscheiden.</p>
+<p>Ein erstes Projekt hatte zum Ziel, eine schaltbare Beleuchtung ähnlich der des Phantoms einzubauen. Dazu sollten LED Streifen an die Arme geklebt werden und mit Hilfe eines Graupner Schaltmodules vie Fernsteuerung ein- und ausgeschaltet werden. Das Projekt ist nicht sehr weit gediehen, da mir letztlich der Nutzen nicht mehr so klar war.</p>
+<p>Was ich wollte war nicht eine statische Beleuchtung, sondern eine der Flugsituation angemessene, dynamisch schaltbare Beleuchtung. So wurde das Naza LED Projekt geboren.
+ 
+          <h3>
+<a name="goals-pages" class="anchor" href="#goals-pages"><span class="octicon octicon-link"></span></a>Gewünschte Eigenschaften der Beleuchtung</h3>
+<ul>Die neue Beleuchtung soll folgende Eigenschaften aufweisen:
+<li>Sie soll sehr hell sein</li>
+<li>Man soll mit der Beleuchtung vorne und hinten unterscheiden können</li>
+<li>Man soll vom Boden her sehen, wie die Naza LED leuchtet / blinkt</li>
+<li>Für die Dämmerung oder die Nacht soll es weisse Landelichter geben</li>
+<li>Die Beleuchtung muss via Fernsteuerung geschaltet werden können</li>
+<li>Falls sich irgendetwas vom obigen als nicht so toll herausstellt soll man dies ohne Löten ändern können</li>
+</ul>
 
-<p>This automatic page generator is the easiest way to create beautiful pages for all of your projects. Author your page content here using GitHub Flavored Markdown, select a template crafted by a designer, and publish. After your page is generated, you can check out the new branch:</p>
+          <h3>
+<a name="design-pages" class="anchor" href="#design-pages"><span class="octicon octicon-link"></span></a>Design</h3>
+<p>Um das obige umzusetzen braucht es einerseits "programmierbare" LEDs, also RGB LEDs, welche die Farbe beliebig wechseln können. Anderseits braucht es einen Mikroprozessor, um das ganze zu steuern. Deshalb wurde die folgende Hardware ausgewählt:
+<ul><li>Arduino als Steuereinheit (Arduino Uno für das Prototyping, Arduino Pro Mini für die gelötete Lösung)</li>
+<li>Adafruit NeoPixel LED Ringe: Dies sind 16 LEDs in Ringform angeordnet, welche individuell angesteuert werden können.</li>
+<li>Bestehende Fernsteuerung war ein Graupner Hott System mit Empfänger GR-16</ul>
 
-<pre><code>$ cd your_repo_root/repo_name
-$ git fetch origin
-$ git checkout gh-pages
+          <h3>
+<a name="fetch-pages" class="anchor" href="#fetch-pages"><span class="octicon octicon-link"></span></a>Laden des Source Codes</h3>
+
+<p>Source Code für dieses Projekt ist verfügbar via Github. So holt man sich eine Kopie:</p>
+
+<pre><code>$ cd dein_projekt_verzeichnis
+$ git clone https://github.com/tinue/naza-led.git
 </code></pre>
+</section>
 
-<p>If you're using the GitHub for Mac, simply sync your repository and you'll see the new branch.</p>
-
-<h3>
-<a name="designer-templates" class="anchor" href="#designer-templates"><span class="octicon octicon-link"></span></a>Designer Templates</h3>
-
-<p>We've crafted some handsome templates for you to use. Go ahead and continue to layouts to browse through them. You can easily go back to edit your page before publishing. After publishing your page, you can revisit the page generator and switch to another theme. Your Page content will be preserved if it remained markdown format.</p>
-
-<h3>
-<a name="rather-drive-stick" class="anchor" href="#rather-drive-stick"><span class="octicon octicon-link"></span></a>Rather Drive Stick?</h3>
-
-<p>If you prefer to not use the automatic generator, push a branch named <code>gh-pages</code> to your repository to create a page manually. In addition to supporting regular HTML content, GitHub Pages support Jekyll, a simple, blog aware static site generator written by our own Tom Preston-Werner. Jekyll makes it easy to create site-wide headers and footers without having to copy them across every page. It also offers intelligent blog support and other advanced templating features.</p>
-
-<h3>
-<a name="authors-and-contributors" class="anchor" href="#authors-and-contributors"><span class="octicon octicon-link"></span></a>Authors and Contributors</h3>
-
-<p>You can <a href="https://github.com/blog/821" class="user-mention">@mention</a> a GitHub username to generate a link to their profile. The resulting <code>&lt;a&gt;</code> element will link to the contributor's GitHub Profile. For example: In 2007, Chris Wanstrath (<a href="https://github.com/defunkt" class="user-mention">@defunkt</a>), PJ Hyett (<a href="https://github.com/pjhyett" class="user-mention">@pjhyett</a>), and Tom Preston-Werner (<a href="https://github.com/mojombo" class="user-mention">@mojombo</a>) founded GitHub.</p>
-
-<h3>
-<a name="support-or-contact" class="anchor" href="#support-or-contact"><span class="octicon octicon-link"></span></a>Support or Contact</h3>
-
-<p>Having trouble with Pages? Check out the documentation at <a href="http://help.github.com/pages">http://help.github.com/pages</a> or contact <a href="mailto:support@github.com">support@github.com</a> and we’ll help you sort it out.</p>
-        </section>
-
-        <footer>
-          Naza LED is maintained by <a href="https://github.com/tinue">tinue</a><br>
-          This page was generated by <a href="http://pages.github.com">GitHub Pages</a>. Tactile theme by <a href="https://twitter.com/jasonlong">Jason Long</a>.
-        </footer>
-
-        
+<footer>
+	Naza LED is maintained by <a href="https://github.com/tinue">tinue</a><br>
+	This page was generated by <a href="http://pages.github.com">GitHub Pages</a>. Tactile theme by <a href="https://twitter.com/jasonlong">Jason Long</a>.
+</footer>
       </div>
     </div>
   </body>
