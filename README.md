@@ -30,8 +30,8 @@ Arduino Pro Mini ersetzt werden. Zudem sollen 6 Ringe - einer
 pro Arm - genutzt werden.
 
 Hier noch zwei Videos, welche verschiedene Stadien des Prototypes zeigen:
-http://youtu.be/-5hrLwAgFbE
-http://youtu.be/aNY-5sn9t78
+- http://youtu.be/-5hrLwAgFbE
+- http://youtu.be/aNY-5sn9t78
 
 
 
