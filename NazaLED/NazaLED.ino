@@ -15,16 +15,16 @@
 #define REMOTESWITCH 6 // Kanal der Fernsteuerung (3 Weg Schalter)
 #define RINGOUT 9 // Datenleitung der LED Ringe
 #define MOTORS 6 // Anzahl Motoren (und somit Anzahl Ringe)
+#define MAXBRIGHTNESS 22 // Anpassen an Leistung der Stromversorgung! 255 = max. 5.76A; 22 = max. 0.5A (USB)
+#define MINPULSE 1089 // Minimale Pule-Länge an Graupner Empfänger
+#define MAXPULSE 1884 // Maximale Puls-Länge an Graupner Empfänger
 
 // "ring" sind die LED Ringe. Der erste Paremeter gibt die Anzahl LEDs an, 16 pro Ring
 Adafruit_NeoPixel ring = Adafruit_NeoPixel(MOTORS * 16, RINGOUT, NEO_GRB + NEO_KHZ800);
-// Optimierungen: Nur zeichnen, wenn etwas gegenüber dem letzten Mal geändert hat
-byte lastSwitchState = 99;
-byte lastColorIndex = 99;
 
 void setup() {
   ring.begin();
-  ring.setBrightness(40); // Testbetrieb: Eher dunkel, da der Strom vom Arduino genommen wird
+  ring.setBrightness(MAXBRIGHTNESS);
   ring.show(); // LEDs schwarz zu Beginn
   //Serial.begin(115200);
   pinMode(NAZAGREEN, INPUT);
@@ -33,34 +33,52 @@ void setup() {
 }
 
 void loop() {
+  static byte lastRotaryState = 256; // Letzter Zustand des Potis merken: Wenn sich nichts verändert muss meist nichts gemacht werden.
+  static byte lastColorIndex = 99; // Im Naza LED Modus muss doch etwas gemacht werden, wenn sich die Naza LED ändert.
+  static const float brightFactor =  MAXBRIGHTNESS / 80.0; // Umrechnungsfaktor für die Helligkeit.
   static const unsigned long int nazaLedColors[] = { 0x000000, 0x00FF00, 0xFF0000, 0xFF4400 }; // schwarz, gruen, rot und gelb
-  // Lesen des Dreiwege-Schalters (0-2)
-  byte switchState = readRemoteSwitch();
+  // Lesen des Potis (0-255)
+  byte rotaryState = readRemoteRotary();
+  byte brightness = round((rotaryState % 80) * brightFactor);
   // Aktion nun je nach Stellung des Schalters
-  if (switchState == 0) {
-    // LEDs zeigen dasselbe Signal wie die Naza LED
+  if (rotaryState < 80) {
+    // Naza LED Modus: LEDs zeigen dasselbe Signal wie die Naza LED
     unsigned long int colorIndex = readNazaColorIndex();
-    if (lastColorIndex != colorIndex || lastSwitchState != 0) {
-      // LEDs neu malen
+    if (lastColorIndex != colorIndex || lastRotaryState != rotaryState) {
+      // Neuer Wert am Poti, und/oder neue Farbe an der Naza LED: LEDs neu malen
+      ring.setBrightness(brightness);
       paintAllRings(nazaLedColors[readNazaColorIndex()]);
       ring.show();
       lastColorIndex = colorIndex;
-      lastSwitchState = 0;
+      lastRotaryState = rotaryState;
     }
-  } else if (switchState == 1) {
-    if (lastSwitchState != 1) {
-      // LEDs leuchten vorne rot und hinten grün (wie beim Phantom)
+  } else if (rotaryState < 160) {
+    // Flugmodus: LEDs leuchten vorne rot und hinten grün (wie beim Phantom)
+    if (lastRotaryState != rotaryState) {
+      // Neuer Wert am Poti: Neu malen
+      ring.setBrightness(brightness);
       paintFlightLights();
       ring.show();
-      lastSwitchState = 1;
-    } // Nachdem einmal die LEDs gemalt wurden bleiben sie, deshalb muss man nichts mehr machen
-  } else if (switchState == 2) {
-    if (lastSwitchState != 2) {
-      // LEDs leuchten alle weiss
+      lastRotaryState = rotaryState;
+    }
+  } else if (rotaryState < 240) {
+    // Landemodus: Alles weiss
+    if (lastRotaryState != rotaryState) {
+      // Neuer Wert am Poti: Neu malen
+      ring.setBrightness(brightness);
       paintAllRings(0xFFFFFF);
       ring.show();
-      lastSwitchState = 2;
-    } // Nachdem einmal die LEDs gemalt wurden bleiben sie, deshalb muss man nichts mehr machen
+      lastRotaryState = rotaryState;
+    }
+  } else {
+    // Notprogramm, LEDs blitzen lassen in verschiedenen Farben
+    // TODO: Implementieren
+    if (lastRotaryState != rotaryState) {
+      ring.setBrightness(brightness);
+      paintAllRings(0x000000);
+      ring.show();
+      lastRotaryState = rotaryState;
+    }
   }
 }
 
@@ -117,22 +135,43 @@ byte readNazaColorIndex() {
   return colorIndex;
 }
 
-/*
- * Auslesen dines Kanals und umrechnen in einen Index 0-2
- * entsprechend der Stellung eines Dreiweg-Schalters.
+/**
+ * Funktion um das Poti zur Modus-Steuerung zu ent-zittern
+ * Der Wert des Potis schwankt leicht, da die Kanäle nicht 100% sauber sind
+ * Deshalb wird eine Aenderung von weniger als 3 nicht als relevant angeschaut.
 */
-byte readRemoteSwitch() {
+byte getSmoothedSwitchState(byte currentSwitchState) {
+  static byte lastSwitchState = 511; // Zu hoher Wert, damit er sicher beim ersten Aufruf ersetzt wird.
+  
+  byte balance = abs(lastSwitchState - currentSwitchState);
+  if (balance >= 4) { // Beim mx-16 Poti 6 schwankt der Wert erheblich, deshalb erst ab 5 ändern
+    lastSwitchState = currentSwitchState;
+    Serial.println(lastSwitchState);
+  } 
+  return lastSwitchState;
+}
+
+  
+
+/*
+ * Auslesen dines Kanals und normalisieren der Werte auf 0-255
+ * entsprechend der Stellung eines Potis
+*/
+byte readRemoteRotary() {
+  // Umrechnungsfaktor
+  static const float normalize = (MAXPULSE - MINPULSE) / 256.0;
   unsigned long int pulseLength = pulseIn(REMOTESWITCH, HIGH, 21000); // Alle rund 20ms kommt ein Puls. Laenger = Kein Signal
-  if (pulseLength == 0) {
-    //kein Signal, letzter Wert
-    return lastSwitchState;
-  } else if (pulseLength < 1100) {
-    return 0;
-  } else if (pulseLength < 1700) {
-    return 1;
+  // Normalisieren Schritt 1: Start bei 0
+  if (pulseLength >= MINPULSE) { // Zur Sicherheit: Falls MINPULSE zu hoch gewählt wurde.
+    pulseLength -= MINPULSE;
   } else {
-    return 2;
+    pulseLength = 0;
   }
+  // Normalisieren Schritt 2: Skalieren
+  pulseLength = round(pulseLength / normalize);
+  if (pulseLength > 255) pulseLength = 255; // Zur Sicherheit: Falls MAXPULSE zu tief gewählt wurde.
+
+  return getSmoothedSwitchState(pulseLength); // Da 0..255 passt der Wert in ein byte
 }
 
 
