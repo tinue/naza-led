@@ -18,6 +18,9 @@
 
 // "ring" sind die LED Ringe. Der erste Paremeter gibt die Anzahl LEDs an, 16 pro Ring
 Adafruit_NeoPixel ring = Adafruit_NeoPixel(MOTORS * 16, RINGOUT, NEO_GRB + NEO_KHZ800);
+// Optimierungen: Nur zeichnen, wenn etwas gegenüber dem letzten Mal geändert hat
+byte lastSwitchState = 99;
+byte lastColorIndex = 99;
 
 void setup() {
   ring.begin();
@@ -36,16 +39,28 @@ void loop() {
   // Aktion nun je nach Stellung des Schalters
   if (switchState == 0) {
     // LEDs zeigen dasselbe Signal wie die Naza LED
-    paintAllRings(nazaLedColors[readNazaColorIndex()]);
-    ring.show();
+    unsigned long int colorIndex = readNazaColorIndex();
+    if (lastColorIndex != colorIndex || lastSwitchState != 0) {
+      // LEDs neu malen
+      paintAllRings(nazaLedColors[readNazaColorIndex()]);
+      ring.show();
+      lastColorIndex = colorIndex;
+      lastSwitchState = 0;
+    }
   } else if (switchState == 1) {
-    // LEDs leuchten vorne rot und hinten grün (wie beim Phantom)
-    paintFlightLights();
-    ring.show();
-  } else {
-    // LEDs leuchten alle weiss
-    paintAllRings(0xFFFFFF);
-    ring.show();
+    if (lastSwitchState != 1) {
+      // LEDs leuchten vorne rot und hinten grün (wie beim Phantom)
+      paintFlightLights();
+      ring.show();
+      lastSwitchState = 1;
+    } // Nachdem einmal die LEDs gemalt wurden bleiben sie, deshalb muss man nichts mehr machen
+  } else if (switchState == 2) {
+    if (lastSwitchState != 2) {
+      // LEDs leuchten alle weiss
+      paintAllRings(0xFFFFFF);
+      ring.show();
+      lastSwitchState = 2;
+    } // Nachdem einmal die LEDs gemalt wurden bleiben sie, deshalb muss man nichts mehr machen
   }
 }
 
@@ -108,7 +123,10 @@ byte readNazaColorIndex() {
 */
 byte readRemoteSwitch() {
   unsigned long int pulseLength = pulseIn(REMOTESWITCH, HIGH, 21000); // Alle rund 20ms kommt ein Puls. Laenger = Kein Signal
-  if (pulseLength < 1100) {
+  if (pulseLength == 0) {
+    //kein Signal, letzter Wert
+    return lastSwitchState;
+  } else if (pulseLength < 1100) {
     return 0;
   } else if (pulseLength < 1700) {
     return 1;
