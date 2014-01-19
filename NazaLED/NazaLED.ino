@@ -12,7 +12,7 @@
 #include <Adafruit_NeoPixel.h>
 #define NAZARED A3 // Rotes LED Signal der Naza
 #define NAZAGREEN A2 // Gruenes LED Signal der Naza
-#define REMOTESWITCH 6 // Kanal der Fernsteuerung (3 Weg Schalter)
+#define REMOTEROTARY 6 // Kanal der Fernsteuerung (3 Weg Schalter)
 #define RINGOUT 9 // Datenleitung der LED Ringe
 #define MOTORS 6 // Anzahl Motoren (und somit Anzahl Ringe)
 #define MAXBRIGHTNESS 22 // Anpassen an Leistung der Stromversorgung! 255 = max. 5.76A; 22 = max. 0.5A (USB)
@@ -29,7 +29,7 @@ void setup() {
   //Serial.begin(115200);
   pinMode(NAZAGREEN, INPUT);
   pinMode(NAZARED, INPUT);
-  pinMode(REMOTESWITCH, INPUT);
+  pinMode(REMOTEROTARY, INPUT);
 }
 
 void loop() {
@@ -140,15 +140,14 @@ byte readNazaColorIndex() {
  * Der Wert des Potis schwankt leicht, da die Kanäle nicht 100% sauber sind
  * Deshalb wird eine Aenderung von weniger als 3 nicht als relevant angeschaut.
 */
-byte getSmoothedSwitchState(byte currentSwitchState) {
-  static byte lastSwitchState = 511; // Zu hoher Wert, damit er sicher beim ersten Aufruf ersetzt wird.
+byte getSmoothedRotaryState(byte currentRotaryState) {
+  static byte lastRotaryState = 511; // Zu hoher Wert, damit er sicher beim ersten Aufruf ersetzt wird.
   
-  byte balance = abs(lastSwitchState - currentSwitchState);
+  byte balance = abs(lastRotaryState - currentRotaryState);
   if (balance >= 4) { // Beim mx-16 Poti 6 schwankt der Wert erheblich, deshalb erst ab 5 ändern
-    lastSwitchState = currentSwitchState;
-    Serial.println(lastSwitchState);
+    lastRotaryState = currentRotaryState;
   } 
-  return lastSwitchState;
+  return lastRotaryState;
 }
 
   
@@ -160,7 +159,7 @@ byte getSmoothedSwitchState(byte currentSwitchState) {
 byte readRemoteRotary() {
   // Umrechnungsfaktor
   static const float normalize = (MAXPULSE - MINPULSE) / 256.0;
-  unsigned long int pulseLength = pulseIn(REMOTESWITCH, HIGH, 21000); // Alle rund 20ms kommt ein Puls. Laenger = Kein Signal
+  unsigned long int pulseLength = pulseIn(REMOTEROTARY, HIGH, 21000); // Alle rund 20ms kommt ein Puls. Laenger = Kein Signal
   // Normalisieren Schritt 1: Start bei 0
   if (pulseLength >= MINPULSE) { // Zur Sicherheit: Falls MINPULSE zu hoch gewählt wurde.
     pulseLength -= MINPULSE;
@@ -171,7 +170,7 @@ byte readRemoteRotary() {
   pulseLength = round(pulseLength / normalize);
   if (pulseLength > 255) pulseLength = 255; // Zur Sicherheit: Falls MAXPULSE zu tief gewählt wurde.
 
-  return getSmoothedSwitchState(pulseLength); // Da 0..255 passt der Wert in ein byte
+  return getSmoothedRotaryState(pulseLength); // Da 0..255 passt der Wert in ein byte
 }
 
 
