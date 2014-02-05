@@ -36,13 +36,17 @@
 
 <p>Der DJI Flamewheel F550 hat keine Beleuchtung. Der Kopter hat eine LED, welche den Status der Naza anzeigt, z.B. Flugmodus, Anzahl sichtbarer Satelliten, oder zu wenig Spannung im Akku.</p>
 
-<p>Diese LED ist zwar hell, aber trotzdem kaum mhr sichtbar sobald der Kopter etwas weg ist. Anders als beim Phantom hat der Kopter auch keine Flug-LEDs um vorn und hinten zu unterscheiden.</p>
+<p>Im Kopterforum.de kam dazu Ende 2013 von <a href="http://www.kopterforum.de/user/551-schnubbi1985/">@Schnubbi1985</a> die Frage auf, ob man die Blinksignale der LED nicht abgreifen und z.B. an LED Strips unter dem Kopter weitergeben kann. Er hat bald darauf ein <a href="https://github.com/diogeneyves/dji-naza-led">Projekt</a> gefunden, welches dies prototypisch umgesetzt hat.</p>
 
-<p>Ein erstes Projekt hatte zum Ziel, eine schaltbare Beleuchtung ähnlich der des Phantoms einzubauen. Dazu sollten LED Streifen an die Arme geklebt werden und mit Hilfe eines Graupner Schaltmodules vie Fernsteuerung ein- und ausgeschaltet werden. Das Projekt ist nicht sehr weit gediehen, da mir letztlich der Nutzen nicht mehr so klar war.</p>
+<p>Daraufhin hat eine rege <a href="http://www.kopterforum.de/topic/3565-naza-m-v2-led-signal-abgreifen/">Diskussion</a> angefangen, welche in bislang drei Umsetzungen dieser Idee resultiert hat. Zum einen hat <a href="http://www.kopterforum.de/user/551-schnubbi1985/">@Schnubbi1985</a> eine Lösung gebaut, welche bereits an seinem Kopter funktioniert. Diese Lösung basiert auf einem Arduino Nano, mit selber designter Platine. Weiter ist die existierende Lösung <a href="http://www.hadi-rc.de/MWC-Light-RGB-Contro">MWCLightRGB</a> um diese Funktion erweitert worden.</p>
+
+<p>Dazu ist mein Projekt entstanden, welches auf dieser Seite vorgestellt wird.</p>
+
+<p>Ein erstes Projekt (noch vor der obigen Diskussion im Kopterforum) hatte zum Ziel, eine schaltbare Beleuchtung ähnlich der des Phantoms einzubauen. Dazu sollten LED Streifen an die Arme geklebt werden und mit Hilfe eines Graupner Schaltmodules vie Fernsteuerung ein- und ausgeschaltet werden. Das Projekt ist nicht sehr weit gediehen, da mir letztlich der Nutzen nicht mehr so klar war.</p>
 
 <p><img src="images/LEDStreifen.jpg" alt="Kopter mit LED Streifen"></p>
 
-<p>Was ich wollte war nicht eine statische Beleuchtung, sondern eine der Flugsituation angemessene, dynamisch schaltbare Beleuchtung. So wurde das Naza LED Projekt geboren.</p>
+<p>Was ich wollte war nicht eine statische Beleuchtung, sondern eine der Flugsituation angemessene, dynamisch schaltbare Beleuchtung.</p>
 
 <h3>
 <a name="gew%C3%BCnschte-eigenschaften-der-beleuchtung" class="anchor" href="#gew%C3%BCnschte-eigenschaften-der-beleuchtung"><span class="octicon octicon-link"></span></a>Gewünschte Eigenschaften der Beleuchtung</h3>
@@ -59,7 +63,7 @@
 </ul><h3>
 <a name="design" class="anchor" href="#design"><span class="octicon octicon-link"></span></a>Design</h3>
 
-<p>Um das obige umzusetzen braucht es einerseits "programmierbare" LEDs, also RGB LEDs, welche die Farbe beliebig wechseln können. Anderseits braucht es einen Mikroprozessor, um das ganze zu steuern. Deshalb wurde die folgende Hardware ausgewählt:</p>
+<p>Um das obige umzusetzen braucht es einerseits "programmierbare" LEDs, also RGB LEDs, welche die Farbe beliebig wechseln können. Anderseits braucht es einen Mikroprozessor, um das ganze zu steuern. Der existierende Prototyp ist auf Arduino Basis entstanden. Deshalb wurde die folgende Hardware ausgewählt:</p>
 
 <ul>
 <li>Arduino als Steuereinheit (Arduino Uno für das Prototyping, Arduino Pro Mini für die gelötete Lösung)</li>
