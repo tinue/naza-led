@@ -91,7 +91,7 @@ void loop() {
 * Malen aller LEDs eines Motors mit derselben Farbe
 */
 void paintMotor(byte motor, unsigned long int color) {
-  unsigned int startIndex = (motor - 1) / LEDPERMOTOR;
+  unsigned int startIndex = (motor - 1) * LEDPERMOTOR;
     for(uint16_t i=startIndex; i<startIndex + LEDPERMOTOR; i++) {
       pixels.setPixelColor(i, color);
   }
