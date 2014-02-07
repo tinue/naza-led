@@ -13,20 +13,22 @@
 #define NAZARED A3 // Rotes LED Signal der Naza
 #define NAZAGREEN A2 // Gruenes LED Signal der Naza
 #define REMOTEROTARY 6 // Kanal der Fernsteuerung (3 Weg Schalter)
-#define RINGOUT 9 // Datenleitung der LED Ringe
-#define MOTORS 6 // Anzahl Motoren (und somit Anzahl Ringe)
+#define LEDOUT 9 // Datenleitung der LED Ringe
+#define MOTORS 6 // Anzahl Motoren (Annahme: Pro Motor jeweils gleichviel Pixels)
+#define LEDPERMOTOR 12 // Anzahl LEDs pro Motor
+#define EXTRALEDS 16 // Anzahl zusätzlicher LEDs am Ende (nach den LEDs der Motoren)
 #define MAXBRIGHTNESS 22 // Anpassen an Leistung der Stromversorgung! 255 = max. 5.76A; 22 = max. 0.5A (USB)
 #define MINPULSE 1089 // Minimale Pule-Länge an Graupner Empfänger
 #define MAXPULSE 1884 // Maximale Puls-Länge an Graupner Empfänger
 
-// "ring" sind die LED Ringe. Der erste Paremeter gibt die Anzahl LEDs an, 16 pro Ring
-Adafruit_NeoPixel ring = Adafruit_NeoPixel(MOTORS * 16, RINGOUT, NEO_GRB + NEO_KHZ800);
+// "pixels" sind alle LEDs, zusammengehängt. Der erste Paremeter gibt die Anzahl LEDs an
+Adafruit_NeoPixel pixels = Adafruit_NeoPixel(MOTORS * LEDPERMOTOR + EXTRALEDS, LEDOUT, NEO_GRB + NEO_KHZ800);
 
 void setup() {
-  ring.begin();
-  ring.setBrightness(MAXBRIGHTNESS);
-  ring.show(); // LEDs schwarz zu Beginn
-  //Serial.begin(115200);
+  pixels.begin();
+  pixels.setBrightness(MAXBRIGHTNESS);
+  pixels.show(); // LEDs schwarz zu Beginn
+  //Serial.begin(115200);  // Ent-kommentieren für Debug Zwecke.
   pinMode(NAZAGREEN, INPUT);
   pinMode(NAZARED, INPUT);
   pinMode(REMOTEROTARY, INPUT);
@@ -46,9 +48,9 @@ void loop() {
     unsigned long int colorIndex = readNazaColorIndex();
     if (lastColorIndex != colorIndex || lastRotaryState != rotaryState) {
       // Neuer Wert am Poti, und/oder neue Farbe an der Naza LED: LEDs neu malen
-      ring.setBrightness(brightness);
-      paintAllRings(nazaLedColors[readNazaColorIndex()]);
-      ring.show();
+      pixels.setBrightness(brightness);
+      paintAllMotors(nazaLedColors[readNazaColorIndex()]);
+      pixels.show();
       lastColorIndex = colorIndex;
       lastRotaryState = rotaryState;
     }
@@ -56,27 +58,27 @@ void loop() {
     // Flugmodus: LEDs leuchten vorne rot und hinten grün (wie beim Phantom)
     if (lastRotaryState != rotaryState) {
       // Neuer Wert am Poti: Neu malen
-      ring.setBrightness(brightness);
+      pixels.setBrightness(brightness);
       paintFlightLights();
-      ring.show();
+      pixels.show();
       lastRotaryState = rotaryState;
     }
   } else if (rotaryState < 240) {
     // Landemodus: Alles weiss
     if (lastRotaryState != rotaryState) {
       // Neuer Wert am Poti: Neu malen
-      ring.setBrightness(brightness);
-      paintAllRings(0xFFFFFF);
-      ring.show();
+      pixels.setBrightness(brightness);
+      paintAllMotors(0xFFFFFF);
+      pixels.show();
       lastRotaryState = rotaryState;
     }
   } else {
     // Notprogramm, LEDs blitzen lassen in verschiedenen Farben
     // TODO: Implementieren
     if (lastRotaryState != rotaryState) {
-      ring.setBrightness(brightness);
-      paintAllRings(0x000000);
-      ring.show();
+      pixels.setBrightness(brightness);
+      paintAllMotors(0x000000);
+      pixels.show();
       lastRotaryState = rotaryState;
     }
   }
@@ -88,32 +90,43 @@ void loop() {
 /*
 * Malen aller LEDs eines Motors mit derselben Farbe
 */
-void paintRing(byte motor, unsigned long int color) {
-  unsigned int startIndex = (motor - 1) << 4; // 16 LEDs pro Ring
-    for(uint16_t i=startIndex; i<startIndex + 16; i++) {
-      ring.setPixelColor(i, color);
+void paintMotor(byte motor, unsigned long int color) {
+  unsigned int startIndex = (motor - 1) / LEDPERMOTOR;
+    for(uint16_t i=startIndex; i<startIndex + LEDPERMOTOR; i++) {
+      pixels.setPixelColor(i, color);
   }
 }
 
 /*
  * Male sämtliche LEDs mit derselben Farbe
 */
-void paintAllRings(unsigned long int color) {
-  for (int motor=1; motor<=6; motor++) {
-    paintRing(motor, color);
+void paintAllMotors(unsigned long int color) {
+  for (int motor=1; motor<=MOTORS; motor++) {
+    paintMotor(motor, color);
   }
 }
 
 /*
  * Male Flugmuster (vorne rot, hinten grün)
 */
+// TODO: Umarbeiten, so dass es für 4 oder 8 Motoren ebenfalls funktioniert.
 void paintFlightLights() {
-  paintRing(1, 0xFF0000); // Vorne links
-  paintRing(2, 0xFF0000); // Vorne rechts
-  paintRing(3, 0x00FF00); // Mitte links
-  paintRing(6, 0x00FF00); // Mitte rechts
-  paintRing(4, 0x00FF00); // Hinten links
-  paintRing(5, 0x00FF00); // Hinten rechts
+  paintMotor(1, 0xFF0000); // Vorne links
+  paintMotor(2, 0xFF0000); // Vorne rechts
+  paintMotor(3, 0x00FF00); // Mitte links
+  paintMotor(6, 0x00FF00); // Mitte rechts
+  paintMotor(4, 0x00FF00); // Hinten links
+  paintMotor(5, 0x00FF00); // Hinten rechts
+}
+
+/*
+* Malen der Zusatzpixel
+*/
+void paintExtraPixels(unsigned long int color) {
+  unsigned int startIndex = MOTORS * LEDPERMOTOR;
+    for(uint16_t i=startIndex; i<startIndex + EXTRALEDS; i++) {
+      pixels.setPixelColor(i, color);
+  }
 }
 
 
