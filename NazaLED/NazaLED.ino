@@ -11,15 +11,16 @@
  *
 */
 
+// Diese Konstanten müssen auf die eigene Konfiguration hin angepasst werden
 #include <Adafruit_NeoPixel.h>
 #define NAZARED A3 // Rotes LED Signal der Naza
 #define NAZAGREEN A2 // Gruenes LED Signal der Naza
-#define REMOTEROTARY 6 // Kanal der Fernsteuerung (3 Weg Schalter)
+#define REMOTEROTARY 6 // Kanal der Fernsteuerung (Potentiometer)
 #define LEDOUT 9 // Datenleitung der LED Ringe
 #define MOTORS 6 // Anzahl Motoren (Annahme: Pro Motor jeweils gleichviel Pixels)
 #define LEDPERMOTOR 12 // Anzahl LEDs pro Motor
 #define EXTRALEDS 16 // Anzahl zusätzlicher LEDs am Ende (nach den LEDs der Motoren)
-#define MAXBRIGHTNESS 50 // Anpassen an Leistung der Stromversorgung! 255 = max. 5.76A; 22 = max. 0.5A (USB)
+#define MAXBRIGHTNESS 50 // Anpassen an Leistung der Stromversorgung! 255 = Anzahl LEDs mal 0.06A. Hier:  max. 5.28A. Gilt aber nur, wenn alle LEDs weiss leuchten
 #define MINPULSE 1089 // Minimale Pule-Länge an Graupner Empfänger
 #define MAXPULSE 1884 // Maximale Puls-Länge an Graupner Empfänger
 
@@ -118,14 +119,13 @@ void paintAllMotors(unsigned long int color) {
 /*
  * Male Flugmuster (vorne rot, hinten grün)
 */
-// TODO: Umarbeiten, so dass es für 4 oder 8 Motoren ebenfalls funktioniert.
 void paintFlightLights(unsigned long int color) {
   // Motoren vorne rot malen
-  paintMotor(1, 0xFF0000); // Vorne links
-  paintMotor(2, 0xFF0000); // Vorne rechts
+  paintMotor(1, 0xFF0000); // Vorne rechts
+  paintMotor(2, 0xFF0000); // Vorne links
   // Alle anderen Motoren wie Naza LED malen
   for (int motor = 3; motor <= MOTORS; motor++) {
-    paintMotor(motor, color); // Mitte links
+    paintMotor(motor, color);
   }
 }
 
