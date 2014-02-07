@@ -1,9 +1,11 @@
 /*
  * Steuerprogramm für Adafruit Neopixels am Hexakopter.
  * Das Programm unterstützt drei Leucht-Modi:
- * - Naza LED duplizieren: Dabei blinken alle Ringe gleich wie die Naza LED
- * - Fluglage: Die roten Arme leuchten rot, die anderen Arme leuchten grün
+ * - Naza LED duplizieren: Dabei blinken alle Motoren gleich wie die Naza LED
+ * - Fluglage: Die vorderen zwei Arme leuchten rot, die anderen Arme leuchten wie die Naza LED (wie Phantom 2)
  * - Landelicht: Alle Ringe leuchten weiss
+ *
+ * - Die zusazz-LED (bei mir unten am Kopter angebracht) leuchtet immer wie die Naza LED
  *
  * Gesteuert wird der Leuchtmodus via Dreiwegschalter an Kanal 8
  *
@@ -17,7 +19,7 @@
 #define MOTORS 6 // Anzahl Motoren (Annahme: Pro Motor jeweils gleichviel Pixels)
 #define LEDPERMOTOR 12 // Anzahl LEDs pro Motor
 #define EXTRALEDS 16 // Anzahl zusätzlicher LEDs am Ende (nach den LEDs der Motoren)
-#define MAXBRIGHTNESS 22 // Anpassen an Leistung der Stromversorgung! 255 = max. 5.76A; 22 = max. 0.5A (USB)
+#define MAXBRIGHTNESS 50 // Anpassen an Leistung der Stromversorgung! 255 = max. 5.76A; 22 = max. 0.5A (USB)
 #define MINPULSE 1089 // Minimale Pule-Länge an Graupner Empfänger
 #define MAXPULSE 1884 // Maximale Puls-Länge an Graupner Empfänger
 
@@ -43,23 +45,25 @@ void loop() {
   byte rotaryState = readRemoteRotary();
   byte brightness = round((rotaryState % 80) * brightFactor);
   // Aktion nun je nach Stellung des Schalters
+  unsigned long int colorIndex = readNazaColorIndex();
   if (rotaryState < 80) {
     // Naza LED Modus: LEDs zeigen dasselbe Signal wie die Naza LED
-    unsigned long int colorIndex = readNazaColorIndex();
+    //unsigned long int colorIndex = readNazaColorIndex();
     if (lastColorIndex != colorIndex || lastRotaryState != rotaryState) {
       // Neuer Wert am Poti, und/oder neue Farbe an der Naza LED: LEDs neu malen
       pixels.setBrightness(brightness);
       paintAllMotors(nazaLedColors[readNazaColorIndex()]);
+      paintExtraPixels(nazaLedColors[readNazaColorIndex()]);
       pixels.show();
       lastColorIndex = colorIndex;
       lastRotaryState = rotaryState;
     }
   } else if (rotaryState < 160) {
-    // Flugmodus: LEDs leuchten vorne rot und hinten grün (wie beim Phantom)
-    if (lastRotaryState != rotaryState) {
+    // Flugmodus: LEDs leuchten vorne rot und hinten wie die Naza LED (ähnlich Phantom 2)
+    if (lastColorIndex != colorIndex || lastRotaryState != rotaryState) {
       // Neuer Wert am Poti: Neu malen
       pixels.setBrightness(brightness);
-      paintFlightLights();
+      paintFlightLights(nazaLedColors[readNazaColorIndex()]);
       pixels.show();
       lastRotaryState = rotaryState;
     }
@@ -82,6 +86,11 @@ void loop() {
       lastRotaryState = rotaryState;
     }
   }
+  if (lastColorIndex != colorIndex) {
+    paintExtraPixels(nazaLedColors[readNazaColorIndex()]);
+    pixels.show();
+    lastColorIndex = colorIndex;
+  }
 }
 
 
@@ -92,8 +101,8 @@ void loop() {
 */
 void paintMotor(byte motor, unsigned long int color) {
   unsigned int startIndex = (motor - 1) * LEDPERMOTOR;
-    for(uint16_t i=startIndex; i<startIndex + LEDPERMOTOR; i++) {
-      pixels.setPixelColor(i, color);
+  for (uint16_t i = startIndex; i < startIndex + LEDPERMOTOR; i++) {
+    pixels.setPixelColor(i, color);
   }
 }
 
@@ -101,7 +110,7 @@ void paintMotor(byte motor, unsigned long int color) {
  * Male sämtliche LEDs mit derselben Farbe
 */
 void paintAllMotors(unsigned long int color) {
-  for (int motor=1; motor<=MOTORS; motor++) {
+  for (int motor = 1; motor <= MOTORS; motor++) {
     paintMotor(motor, color);
   }
 }
@@ -110,13 +119,14 @@ void paintAllMotors(unsigned long int color) {
  * Male Flugmuster (vorne rot, hinten grün)
 */
 // TODO: Umarbeiten, so dass es für 4 oder 8 Motoren ebenfalls funktioniert.
-void paintFlightLights() {
+void paintFlightLights(unsigned long int color) {
+  // Motoren vorne rot malen
   paintMotor(1, 0xFF0000); // Vorne links
   paintMotor(2, 0xFF0000); // Vorne rechts
-  paintMotor(3, 0x00FF00); // Mitte links
-  paintMotor(6, 0x00FF00); // Mitte rechts
-  paintMotor(4, 0x00FF00); // Hinten links
-  paintMotor(5, 0x00FF00); // Hinten rechts
+  // Alle anderen Motoren wie Naza LED malen
+  for (int motor = 3; motor <= MOTORS; motor++) {
+    paintMotor(motor, color); // Mitte links
+  }
 }
 
 /*
@@ -124,8 +134,8 @@ void paintFlightLights() {
 */
 void paintExtraPixels(unsigned long int color) {
   unsigned int startIndex = MOTORS * LEDPERMOTOR;
-    for(uint16_t i=startIndex; i<startIndex + EXTRALEDS; i++) {
-      pixels.setPixelColor(i, color);
+  for (uint16_t i = startIndex; i < startIndex + EXTRALEDS; i++) {
+    pixels.setPixelColor(i, color);
   }
 }
 
@@ -155,15 +165,15 @@ byte readNazaColorIndex() {
 */
 byte getSmoothedRotaryState(byte currentRotaryState) {
   static byte lastRotaryState = 511; // Zu hoher Wert, damit er sicher beim ersten Aufruf ersetzt wird.
-  
+
   byte balance = abs(lastRotaryState - currentRotaryState);
   if (balance >= 4) { // Beim mx-16 Poti 6 schwankt der Wert erheblich, deshalb erst ab 5 ändern
     lastRotaryState = currentRotaryState;
-  } 
+  }
   return lastRotaryState;
 }
 
-  
+
 
 /*
  * Auslesen dines Kanals und normalisieren der Werte auf 0-255
