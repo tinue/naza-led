@@ -67,9 +67,15 @@
 
 <ul>
 <li>Arduino als Steuereinheit (Arduino Uno für das Prototyping, Arduino Pro Mini für die gelötete Lösung)</li>
-<li>Adafruit NeoPixel LED Ringe: Dies sind 16 LEDs in Ringform angeordnet, welche individuell angesteuert werden können.</li>
-<li>Bestehende Fernsteuerung war ein Graupner Hott System mit Empfänger GR-16</li>
+<li>Adafruit NeoPixel LEDs: Dies sind Leuchtdioden in Streifenform oder 16 LEDs in Ringform angeordnet, welche individuell angesteuert werden können. Mehrere Streifen, Ringe etc. können verbunden werden. Alle LEDs des Verbundes werden dann durchnummeriert und sind immer noch einzeln steuerbar über eine einzige Steuerleitung. Ursprünglich wollte ich die Ringe verwenden und pro Motor einen Ring unten hinleben, aber leider passen die Ringe nicht gut auf die DJI Arme. Deshalb sind jetzt Streifen im Einsatz, mit einem zusätzlichen Ring in der Koptermitte.</li>
+<li>Bestehende Fernsteuerung war ein Graupner Hott System mit Empfänger GR-16. Das Projekt funktioniert damit, allerdings ist die Fernsteuerung unterdessen ersetzt mit einer Taranis X9D und Empfänger X8R. Am Arduino Code ändert sich nichts.</li>
 </ul><h3>
+<a name="l%C3%B6sung" class="anchor" href="#l%C3%B6sung"><span class="octicon octicon-link"></span></a>Lösung</h3>
+
+<p>Unterdessen ist die Lichtsteuerung fertig, eine kleine Demonstration ist hier zu sehen:
+<a href="http://youtu.be/up987QC-eiE">http://youtu.be/up987QC-eiE</a></p>
+
+<h3>
 <a name="laden-des-source-codes" class="anchor" href="#laden-des-source-codes"><span class="octicon octicon-link"></span></a>Laden des Source Codes</h3>
 
 <p>Source Code für dieses Projekt ist verfügbar via Github. So holt man sich eine Kopie:</p>
