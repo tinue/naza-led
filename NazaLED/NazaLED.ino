@@ -2,12 +2,14 @@
  * Steuerprogramm für Adafruit Neopixels am Hexakopter.
  * Das Programm unterstützt drei Leucht-Modi:
  * - Naza LED duplizieren: Dabei blinken alle Motoren gleich wie die Naza LED
- * - Fluglage: Die vorderen zwei Arme leuchten rot, die anderen Arme leuchten wie die Naza LED (wie Phantom 2)
- * - Landelicht: Alle Ringe leuchten weiss
+ * - Fluglage: Vorne links rot, vorne rechts grün und hinten weiss (TODO: Weiss blitzen, wie ein Flugzeug)
+ * - Landelicht: Alle Arme leuchten weiss
  *
- * - Die zusazz-LED (bei mir unten am Kopter angebracht) leuchtet immer wie die Naza LED
+ * - Die Zusatz-LED (bei mir unten am Kopter angebracht) leuchtet immer wie die Naza LED.
  *
- * Gesteuert wird der Leuchtmodus via Dreiwegschalter an Kanal 8
+ * Gesteuert wird der Leuchtmodus via Potentiometer an einem freien Kanal der Fernsteuerung. Dank Potentiometer gibt es ein paar Zusatzfunktionen:
+ * - Ganz links: Lichter aus (ausser Zusatz-LED)
+ * - Pro Lichtmodus gibt es drei Helligkeitsstufen: 1/8, 1/4 und volle Helligkeit, je nach Stellung des Poti innerhalb des Bereiches für einen Lichtmodus.
  *
 */
 
@@ -15,14 +17,25 @@
 #include <Adafruit_NeoPixel.h>
 #define NAZARED A3 // Rotes LED Signal der Naza
 #define NAZAGREEN A2 // Gruenes LED Signal der Naza
-#define REMOTEROTARY 6 // Kanal der Fernsteuerung (Potentiometer)
+#define REMOTEROTARY 6 // Arduino-Eingang für den Kanal der Fernsteuerung (Potentiometer)
 #define LEDOUT 9 // Datenleitung der LED Ringe
-#define MOTORS 6 // Anzahl Motoren (Annahme: Pro Motor jeweils gleichviel Pixels)
+#define MOTORS 6 // Anzahl Motoren (Annahme: Pro Motor jeweils gleichviel LEDs)
 #define LEDPERMOTOR 12 // Anzahl LEDs pro Motor
 #define EXTRALEDS 16 // Anzahl zusätzlicher LEDs am Ende (nach den LEDs der Motoren)
-#define MAXBRIGHTNESS 50 // Anpassen an Leistung der Stromversorgung! 255 = Anzahl LEDs mal 0.06A. Hier:  max. 5.28A. Gilt aber nur, wenn alle LEDs weiss leuchten
-#define MINPULSE 1089 // Minimale Pule-Länge an Graupner Empfänger
-#define MAXPULSE 1884 // Maximale Puls-Länge an Graupner Empfänger
+#define MAXBRIGHTNESS 255 // Anpassen an Leistung der Stromversorgung! 255 = Anzahl LEDs mal 0.06A. Hier:  max. 5.28A. Gilt aber nur, wenn alle LEDs weiss leuchten.
+#define MINPULSE 1089 // Minimale Pule-Länge am Empfänger in ns, muss ev. angepasst werden,
+#define MAXPULSE 1884 // Maximale Puls-Länge am Empfänger in ns
+
+// Ein paar Konstanten zur besseren Lesbarkeit
+#define LIGHTOFF 0 // Licht aus
+#define LIGHTNAZA 1 // Naza LED Modus
+#define LIGHTFLIGHT 2 // Flugmodus
+#define LIGHTLAND 3 // Landelicht
+#define BLACK 0x000000 // Schwarz
+#define RED  0xFF0000 // Rot
+#define GREEN 0x00FF00 // Grün
+#define YELLOW 0xFFA500 // Gelb
+#define WHITE 0xFFFFFF // Weiss
 
 // "pixels" sind alle LEDs, zusammengehängt. Der erste Paremeter gibt die Anzahl LEDs an
 Adafruit_NeoPixel pixels = Adafruit_NeoPixel(MOTORS * LEDPERMOTOR + EXTRALEDS, LEDOUT, NEO_GRB + NEO_KHZ800);
@@ -38,60 +51,74 @@ void setup() {
 }
 
 void loop() {
-  static byte lastRotaryState = 256; // Letzter Zustand des Potis merken: Wenn sich nichts verändert muss meist nichts gemacht werden.
+  /**
+  * Die Poti-Stellung wird auf 0-255 normalisiert.
+  * Regionen Potentiometer:
+  *   0- 15: Licht aus
+  *  16- 95: Naza LED Modus
+  *  96-175: Flugmodus
+  * 176-255: Landelicht
+  */
+  static byte lastLightMode = 99; // Letzter Zustand des Potis merken: Wenn sich nichts verändert muss meist nichts gemacht werden.
   static byte lastColorIndex = 99; // Im Naza LED Modus muss doch etwas gemacht werden, wenn sich die Naza LED ändert.
-  static const float brightFactor =  MAXBRIGHTNESS / 80.0; // Umrechnungsfaktor für die Helligkeit.
-  static const unsigned long int nazaLedColors[] = { 0x000000, 0x00FF00, 0xFF0000, 0xFF4400 }; // schwarz, gruen, rot und gelb
+  static byte lastBrightness = 99;
+  static const unsigned long int nazaLedColors[] = { BLACK, GREEN, RED, YELLOW }; // schwarz, gruen, rot und gelb; Anpassen nach Wunsch
+
   // Lesen des Potis (0-255)
   byte rotaryState = readRemoteRotary();
-  byte brightness = round((rotaryState % 80) * brightFactor);
-  // Aktion nun je nach Stellung des Schalters
-  unsigned long int colorIndex = readNazaColorIndex();
-  if (rotaryState < 80) {
-    // Naza LED Modus: LEDs zeigen dasselbe Signal wie die Naza LED
-    //unsigned long int colorIndex = readNazaColorIndex();
-    if (lastColorIndex != colorIndex || lastRotaryState != rotaryState) {
-      // Neuer Wert am Poti, und/oder neue Farbe an der Naza LED: LEDs neu malen
-      pixels.setBrightness(brightness);
-      paintAllMotors(nazaLedColors[readNazaColorIndex()]);
-      paintExtraPixels(nazaLedColors[readNazaColorIndex()]);
-      pixels.show();
-      lastColorIndex = colorIndex;
-      lastRotaryState = rotaryState;
-    }
-  } else if (rotaryState < 160) {
-    // Flugmodus: LEDs leuchten vorne rot und hinten wie die Naza LED (ähnlich Phantom 2)
-    if (lastColorIndex != colorIndex || lastRotaryState != rotaryState) {
-      // Neuer Wert am Poti: Neu malen
-      pixels.setBrightness(brightness);
-      paintFlightLights(nazaLedColors[readNazaColorIndex()]);
-      pixels.show();
-      lastRotaryState = rotaryState;
-    }
-  } else if (rotaryState < 240) {
-    // Landemodus: Alles weiss
-    if (lastRotaryState != rotaryState) {
-      // Neuer Wert am Poti: Neu malen
-      pixels.setBrightness(brightness);
-      paintAllMotors(0xFFFFFF);
-      pixels.show();
-      lastRotaryState = rotaryState;
-    }
+  byte lightMode;
+  // Lichtmodus bestimmen
+  if (rotaryState < 16) {
+    lightMode = LIGHTOFF;
+  } else if (rotaryState < 96) {
+    lightMode = LIGHTNAZA;
+  } else if (rotaryState < 176) {
+    lightMode = LIGHTFLIGHT;
   } else {
-    // Notprogramm, LEDs blitzen lassen in verschiedenen Farben
-    // TODO: Implementieren
-    if (lastRotaryState != rotaryState) {
-      pixels.setBrightness(brightness);
-      paintAllMotors(0x000000);
-      pixels.show();
-      lastRotaryState = rotaryState;
+    lightMode = LIGHTLAND;
+  }
+
+  // Helligkeit bestimmen
+  byte brightness;
+  if (rotaryState < 16) {
+    // Licht ist aus, trotzdem unterer Ring hell brennen lassen
+    brightness = MAXBRIGHTNESS;
+  } else {
+    brightness = (rotaryState - 16) % 80; // 0-15 ist aus, danach 80 Werte pro Lichtmodus
+    if (brightness < 26) {
+      brightness = MAXBRIGHTNESS >> 3; // 1/8 der maximalen Helligkeit
+    } else if (brightness < 54) {
+      brightness = MAXBRIGHTNESS >> 2; // 1/4 der maximalen Helligkeit
+    } else {
+      brightness = MAXBRIGHTNESS; // volle Helligkeit
     }
   }
-  if (lastColorIndex != colorIndex) {
-    paintExtraPixels(nazaLedColors[readNazaColorIndex()]);
-    pixels.show();
-    lastColorIndex = colorIndex;
+
+  // Aktion nun je nach Lichtmodus
+  unsigned long int colorIndex = readNazaColorIndex();
+  // Malen der Pixels nur, wenn sich gegenüber der letzten Runde etwas geändert hat.
+  if (lastColorIndex != colorIndex || lastLightMode != lightMode || lastBrightness != brightness) {
+    pixels.setBrightness(brightness);
+    if (lightMode == LIGHTOFF) {
+      // Lichter aus
+      paintAllMotors(nazaLedColors[BLACK]);
+    } else if (lightMode == LIGHTNAZA) {
+      // Naza LED Modus
+      paintAllMotors(nazaLedColors[colorIndex]);
+    } else if (lightMode == LIGHTFLIGHT) {
+      // Flugmodus
+      paintFlightLights();
+    } else {
+      // Landelicht
+      paintAllMotors(WHITE);
+    }
   }
+  // Unterer Ring malen, alle LEDs anzeigen, letzte Modi merken für die nächste Runde
+  paintExtraPixels(nazaLedColors[colorIndex]);
+  pixels.show();
+  lastLightMode = lightMode;
+  lastColorIndex = colorIndex;
+  lastBrightness = brightness;
 }
 
 
@@ -119,13 +146,28 @@ void paintAllMotors(unsigned long int color) {
 /*
  * Male Flugmuster (vorne rot, hinten grün)
 */
-void paintFlightLights(unsigned long int color) {
-  // Motoren vorne rot malen
-  paintMotor(1, 0xFF0000); // Vorne rechts
-  paintMotor(2, 0xFF0000); // Vorne links
-  // Alle anderen Motoren wie Naza LED malen
-  for (int motor = 3; motor <= MOTORS; motor++) {
-    paintMotor(motor, color);
+void paintFlightLights() {
+  if (MOTORS == 6) {
+    // Motoren vorne links rot malen
+    paintMotor(2, RED);
+    paintMotor(3, RED);
+    // Motoren vorne rechts grün malen
+    paintMotor(1, GREEN);
+    paintMotor(6, GREEN);
+    // Hintere Motoren weiss malen
+    paintMotor(4, WHITE);
+    paintMotor(5, WHITE);
+  } else if (MOTORS == 4) {
+    // Vorne rot, hinten grün
+    paintMotor(1, RED);
+    paintMotor(2, RED);
+    paintMotor(3, GREEN);
+    paintMotor(4, GREEN);
+  } else {
+    // Keine Ahnung was sonst... Male alles rot.
+    for (int i = 1; i <= MOTORS; i++) {
+      paintMotor(i, RED);
+    }
   }
 }
 
