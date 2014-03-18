@@ -4,7 +4,10 @@ naza-led
 Homepage des Projektes ist http://tinue.github.io/naza-led
 
 Versionsnachweis:
-- 21. März
+- 18. März
+ - Extra-Ring funktioniert jetzt im Polizei-Modus
+ - Rot/Grün war vertauscht beim Naza Licht
+- 17. März
  - DISCLAIMER: Einige Funktionen sind nicht getestet (Extra-Ring im Polizeilicht-Modus; Schalter für Helligkeit)
    Test wird folgen, sobald die Hardware (Patch-Kabel) eingetroffen sind.
  - Neu: Polizeilicht-Modus

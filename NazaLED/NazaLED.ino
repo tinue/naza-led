@@ -15,8 +15,8 @@
 
 // Diese Konstanten müssen auf die eigene Konfiguration hin angepasst werden
 #include <Adafruit_NeoPixel.h>
-#define NAZARED A1 // Rotes LED Signal der Naza
-#define NAZAGREEN A0 // Gruenes LED Signal der Naza
+#define NAZARED A0 // Rotes LED Signal der Naza
+#define NAZAGREEN A1 // Gruenes LED Signal der Naza
 #define REMOTEROTARY A2 // Arduino-Eingang für den Kanal der Fernsteuerung (Potentiometer)
 #define REMOTESWITCH A3 // Arduino-Eingang für den 2. Kanal der Fernsteuerung (Schalter)-
 #define LEDOUT 13 // Datenleitung der LED Ringe
@@ -77,13 +77,19 @@ void loop() {
   } else {
     brightness = MAXBRIGHTNESS; // volle Helligkeit
   }
+  pixels.setBrightness(brightness);
 
   // Aktion nun je nach Lichtmodus
+  // "Statische" Modi können in einem Aufwasch gemalt werden, "dynamische" dauern länger
+  // Sie werden daher unterschiedlich behandelt
   unsigned long int colorIndex = readNazaColorIndex();
-  // Malen der Pixels nur, wenn sich gegenüber der letzten Runde etwas geändert hat. Der Polizeilicht-Modus
-  // ist "aktiv" und muss daher immer gemalt werden. In dem Modus wird auch das malen der unteren LED direkt übernommen.
-  if (LIGHTPOLICE || lastColorIndex != colorIndex || lastLightMode != lightMode || lastBrightness != brightness) {
-    pixels.setBrightness(brightness);
+  if (lightMode == LIGHTPOLICE) {
+    // Der Polizeilicht-Modus ist "aktiv" und muss daher immer gemalt werden.
+    // In dem Modus wird auch das malen der unteren LED direkt übernommen, dader Naza-Statusu mehrmals ausgelesen werden muss.
+    paintPoliceLights();
+  } else if (lastColorIndex != colorIndex || lastLightMode != lightMode || lastBrightness != brightness) {
+    // Statische Modi
+    // Malen der Pixels nur, wenn sich gegenüber der letzten Runde etwas geändert hat.
     if (lightMode == LIGHTOFF) {
       // Lichter aus
       paintAllMotors(BLACK);
@@ -102,11 +108,11 @@ void loop() {
       // Unbekannter Lichtmodus -> Schwarz.
       paintAllMotors(BLACK);
     }
+    // Unterer Ring malen, alle LEDs anzeigen
+    paintExtraPixels(colorIndex);
+    pixels.show();
   }
-  // Unterer Ring malen, alle LEDs anzeigen, letzte Modi merken für die nächste Runde
-  //TODO: Für "dynamische" Modi, wie Polizeilicht, müssten die nächsten zwei Zeilen nicht ausgeführt werden.
-  paintExtraPixels(colorIndex);
-  pixels.show();
+  // Letzte Modi merken für die nächste Runde
   lastLightMode = lightMode;
   lastColorIndex = colorIndex;
   lastBrightness = brightness;
@@ -209,57 +215,75 @@ void paintPoliceLights() {
   paintBackMotors(BLACK);
   paintExtraPixels(readNazaColorIndex());
   pixels.show();
-  delay(50);
+  delayWithNazaLight(5);
   // Vorne schwarz, hinten langsam heller
   paintLeftMotors(BLACK);
   paintRightMotors(BLACK);
   paintBackMotors(DIMWHITE);
   paintExtraPixels(readNazaColorIndex());
   pixels.show();
-  delay(50);
+  delayWithNazaLight(5);
   // Vorne rechts blau, hinten weiss
   paintLeftMotors(BLACK);
   paintRightMotors(BLUE);
   paintBackMotors(WHITE);
   paintExtraPixels(readNazaColorIndex());
   pixels.show();
-  delay(50);
+  delayWithNazaLight(5);
   // Vorne schwarz, hinten weiss
   paintLeftMotors(BLACK);
   paintRightMotors(BLACK);
   paintBackMotors(WHITE);
   paintExtraPixels(readNazaColorIndex());
   pixels.show();
-  delay(100);
+  delayWithNazaLight(10);
   // Nach etwas längerer Pause vorne links rot, hinten weiss
   paintLeftMotors(RED);
   paintRightMotors(BLACK);
   paintBackMotors(WHITE);
   paintExtraPixels(readNazaColorIndex());
   pixels.show();
-  delay(50);
+  delayWithNazaLight(5);
   // Vorne schwarz, hinten langsam dunkler
   paintLeftMotors(BLACK);
   paintRightMotors(BLACK);
   paintBackMotors(DIMWHITE);
   paintExtraPixels(readNazaColorIndex());
   pixels.show();
-  delay(50);
+  delayWithNazaLight(5);
   // Vorne links rot, hinten dunkler
   paintLeftMotors(RED);
   paintRightMotors(BLACK);
   paintBackMotors(DIMWHITE);
   paintExtraPixels(readNazaColorIndex());
   pixels.show();
-  delay(50);
+  delayWithNazaLight(5);
   // Alles schwarz
   paintLeftMotors(BLACK);
   paintRightMotors(BLACK);
   paintBackMotors(BLACK);
   paintExtraPixels(readNazaColorIndex());
   pixels.show();
-  delay(100);
+  delayWithNazaLight(10);
 }
+
+/*
+ * Man darf nicht zu lange Pausen machen, sonst ist das Extra-Licht unten am Kopter nicht mehr synchron zur Naza LED
+ * Hilfsroutine, um die Pausen zu zerstückeln und zwischendurch, falls nötig, das Naza-Licht neu zu zeichnen.
+*/
+void delayWithNazaLight(unsigned long numTenMillis) {
+  static unsigned long int lastColor = 0;
+  for (int i=0; i<numTenMillis; i++) {
+    delay(10);
+    unsigned long int color = readNazaColorIndex();
+    if (lastColor != color) {
+      paintExtraPixels(color);
+      pixels.show();
+      lastColor = color;
+    }
+  }
+}
+  
 
 /*
 * Malen der Zusatzpixel (z.B. Ring unten am Kopter)
