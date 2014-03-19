@@ -183,8 +183,8 @@ void paintBackMotors(unsigned long int color) {
     paintMotor(4, color);
     paintMotor(5, color);
   } else if (MOTORS == 4) {
-    paintMotor(2, color);
     paintMotor(3, color);
+    paintMotor(4, color);
   }
 }
 
@@ -270,6 +270,8 @@ void paintPoliceLights() {
 /*
  * Man darf nicht zu lange Pausen machen, sonst ist das Extra-Licht unten am Kopter nicht mehr synchron zur Naza LED
  * Hilfsroutine, um die Pausen zu zerstückeln und zwischendurch, falls nötig, das Naza-Licht neu zu zeichnen.
+ * Die Pausen sind max. 5ms, was ideal ist. Weniger macht die Pausen insgesamt zu lang, wodurch das Polizei-Licht
+ * nicht mehr schön aussieht, mehr führt zu deutlich sichtbaren Verzögerungen am unteren Licht.
 */
 void delayWithNazaLight(unsigned long numTenMillis) {
   static unsigned long int lastColor = 0;

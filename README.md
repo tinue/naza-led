@@ -4,6 +4,8 @@ naza-led
 Homepage des Projektes ist http://tinue.github.io/naza-led
 
 Versionsnachweis:
+- 19. März
+ - Fehler bei 4 Motoren behoben
 - 18. März
  - Extra-Ring funktioniert jetzt im Polizei-Modus
  - Rot/Grün war vertauscht beim Naza Licht
