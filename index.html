@@ -42,37 +42,23 @@
 
 <p>Dazu ist mein Projekt entstanden, welches auf dieser Seite vorgestellt wird.</p>
 
-<p>Ein erstes Projekt (noch vor der obigen Diskussion im Kopterforum) hatte zum Ziel, eine schaltbare Beleuchtung ähnlich der des Phantoms einzubauen. Dazu sollten LED Streifen an die Arme geklebt werden und mit Hilfe eines Graupner Schaltmodules vie Fernsteuerung ein- und ausgeschaltet werden. Das Projekt ist nicht sehr weit gediehen, da mir letztlich der Nutzen nicht mehr so klar war.</p>
-
-<p><img src="images/LEDStreifen.jpg" alt="Kopter mit LED Streifen"></p>
-
-<p>Was ich wollte war nicht eine statische Beleuchtung, sondern eine der Flugsituation angemessene, dynamisch schaltbare Beleuchtung.</p>
-
 <h3>
-<a name="gew%C3%BCnschte-eigenschaften-der-beleuchtung" class="anchor" href="#gew%C3%BCnschte-eigenschaften-der-beleuchtung"><span class="octicon octicon-link"></span></a>Gewünschte Eigenschaften der Beleuchtung</h3>
+<a name="hardware" class="anchor" href="#hardware"><span class="octicon octicon-link"></span></a>Hardware</h3>
 
-<p>Die neue Beleuchtung soll folgende Eigenschaften aufweisen:</p>
-
-<ul>
-<li>Sie soll sehr hell sein</li>
-<li>Man soll mit der Beleuchtung vorne und hinten unterscheiden können</li>
-<li>Man soll vom Boden her sehen, wie die Naza LED leuchtet / blinkt</li>
-<li>Für die Dämmerung oder die Nacht soll es weisse Landelichter geben</li>
-<li>Die Beleuchtung muss via Fernsteuerung geschaltet werden können</li>
-<li>Falls sich irgendetwas vom obigen als nicht so toll herausstellt soll man dies ohne Löten ändern können</li>
-</ul><h3>
-<a name="design" class="anchor" href="#design"><span class="octicon octicon-link"></span></a>Design</h3>
-
-<p>Um das obige umzusetzen braucht es einerseits "programmierbare" LEDs, also RGB LEDs, welche die Farbe beliebig wechseln können. Anderseits braucht es einen Mikroprozessor, um das ganze zu steuern. Der existierende Prototyp ist auf Arduino Basis entstanden. Deshalb wurde die folgende Hardware ausgewählt:</p>
+<p>Im Wesentlichen braucht es für die Beleuchtung:</p>
 
 <ul>
-<li>Arduino als Steuereinheit (Arduino Uno für das Prototyping, Arduino Pro Mini für die gelötete Lösung)</li>
-<li>Adafruit NeoPixel LEDs: Dies sind Leuchtdioden in Streifenform oder 16 LEDs in Ringform angeordnet, welche individuell angesteuert werden können. Mehrere Streifen, Ringe etc. können verbunden werden. Alle LEDs des Verbundes werden dann durchnummeriert und sind immer noch einzeln steuerbar über eine einzige Steuerleitung. Ursprünglich wollte ich die Ringe verwenden und pro Motor einen Ring unten hinleben, aber leider passen die Ringe nicht gut auf die DJI Arme. Deshalb sind jetzt Streifen im Einsatz, mit einem zusätzlichen Ring in der Koptermitte.</li>
-<li>Bestehende Fernsteuerung war ein Graupner Hott System mit Empfänger GR-16. Das Projekt funktioniert damit, allerdings ist die Fernsteuerung unterdessen ersetzt mit einer Taranis X9D und Empfänger X8R. Am Arduino Code ändert sich nichts.</li>
+<li>Mikroprozessor: Arduino Pro Mini in 5 Volt Ausführung (Achtung: aktuelle Version mit ATmega328 beschaffen. Die alte Version mit ATmega168 hat zu wenig RAM).</li>
+<li>LEDs: Programmierbare LED Streifen oder Ringe mit WS2812 LED Chips. Funktionieren tun beispielsweise die Adafruit NeoPixel Strips oder Ringe. Ungefähr 8-16 LEDs pro Motor sehen hübsch aus, mehr ist auch möglich wenn die Stromversorgung mithalten kann. Die Software sieht eine Zusatz-LED-Gruppe unten am Kopter vor; Man kann beispielsweise an den Motoren Streifen mit 12 LEDs verwenden, und unten ein Ring mit 16 LEDs.</li>
+<li>Stromversorgung: Stabile 5 Volt Versorgung mit ausreichend Leistung. Pro LED wird bei voller Helligkeit und weissem Licht 60mA gebraucht. Ein Hexakopter, ausgestattet wir oben empfohlen zieht deshalb maximal (6*12+16)*60mA, oder 5.3 Ampere. Die meisten BECs (Spannungswandler von 3S-6S Lipo Spannung auf stabile 5 Volt) leisten 5 Ampere, und sind deshalb bereits knapp bemessen.</li>
+<li>Kleinteile: Kondensator 1000 Microfarad, 5 Volt; Widerstand 470 Ohm; Viele Kabel; Falls gewünscht Pfosten zum einlöten am Arduino; Schrumpfschlauch</li>
+<li>Sehr viel ordentlicher wird es, wenn man die Platine von Schnubbi1985 verwendet. Da diese (noch?) nicht frei erhältlich ist kann man das ganze aber auch ohne aufbauen.</li>
 </ul><h3>
 <a name="l%C3%B6sung" class="anchor" href="#l%C3%B6sung"><span class="octicon octicon-link"></span></a>Lösung</h3>
 
-<p>Unterdessen ist die Lichtsteuerung fertig, eine kleine Demonstration ist hier zu sehen:
+<p>Fotos zum Aufbau; Schaltdiagramm; Anleitung etc. fehlen leider noch.</p>
+
+<p>Einzig eine kleine Demonstration zur fertigen Lösung ist hier zu sehen:
 <a href="http://youtu.be/FNbzufNIeCg">http://youtu.be/FNbzufNIeCg</a></p>
 
 <h3>
