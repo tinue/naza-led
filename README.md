@@ -4,6 +4,9 @@ naza-led
 Homepage des Projektes ist http://tinue.github.io/naza-led
 
 Versionsnachweis:
+- 11. April
+ - Änderungen von Pascal eingepflegt (vor allem Flugmodus mit Naza)
+ - Weitere Farbmodi (Regenbogen, basierend auf den Adafruit "Strandtest" Beispielen)
 - 19. März
  - Fehler bei 4 Motoren behoben
 - 18. März

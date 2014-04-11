@@ -33,10 +33,15 @@
 #define LIGHTOFF 0 // Licht aus
 #define LIGHTNAZA 1 // Naza LED Modus
 #define LIGHTFLIGHT 2 // Flugmodus
-#define LIGHTLAND 3 // Landelicht
+#define LIGHTFLIGHTNAZA 3
 #define LIGHTPOLICE 4 // Polizeilicht
+#define LIGHTRAINBOWA 5 // Regenbogen
+#define LIGHTRAINBOWB 6 // Regenbogen Variante 2
+#define LIGHTTHEATERCHASERAINBOW 7
+#define LIGHTLAND 8 // Landelicht
 #define BLACK 0x000000 // Schwarz
-#define DIMWHITE 0x808080 // dunkleres Weiss
+#define PWHITE 0x606060 // dunkles Weiss
+#define DIMWHITE 0x808080 // fast helles Weiss
 #define RED  0xFF0000 // Rot
 #define BLUE 0x0000FF // Blau
 #define GREEN 0x00FF00 // Grün
@@ -47,16 +52,20 @@
 Adafruit_NeoPixel pixels = Adafruit_NeoPixel(MOTORS * LEDPERMOTOR + EXTRALEDS, LEDOUT, NEO_GRB + NEO_KHZ800);
 // Die vier möglichen Farben der Naza LED
 static const unsigned long int nazaLedColors[] = { BLACK, GREEN, RED, YELLOW };
+static int maxFreeMem = 0; // Debug: Maximales freies RAM
+static int minFreeMem = 32767; // Debug: Minimal freies RAM
 
 void setup() {
+  freeRam();
   pixels.begin();
   pixels.setBrightness(MAXBRIGHTNESS);
   pixels.show(); // LEDs schwarz zu Beginn
-  //Serial.begin(115200);  // Ent-kommentieren für Debug Zwecke.
+  Serial.begin(115200);  // Ent-kommentieren für Debug Zwecke.
   pinMode(NAZAGREEN, INPUT);
   pinMode(NAZARED, INPUT);
   pinMode(REMOTEROTARY, INPUT);
   pinMode(REMOTESWITCH, INPUT);
+  freeRam();
 }
 
 void loop() {
@@ -87,6 +96,12 @@ void loop() {
     // Der Polizeilicht-Modus ist "aktiv" und muss daher immer gemalt werden.
     // In dem Modus wird auch das malen der unteren LED direkt übernommen, dader Naza-Statusu mehrmals ausgelesen werden muss.
     paintPoliceLights();
+  } else if (lightMode == LIGHTRAINBOWA) {
+    paintRainbow();
+  } else if (lightMode == LIGHTRAINBOWB) {
+    paintRainbowCycle();
+  } else if (lightMode == LIGHTTHEATERCHASERAINBOW) {
+    paintTheaterChaseRainbow();
   } else if (lastColorIndex != colorIndex || lastLightMode != lightMode || lastBrightness != brightness) {
     // Statische Modi
     // Malen der Pixels nur, wenn sich gegenüber der letzten Runde etwas geändert hat.
@@ -99,6 +114,10 @@ void loop() {
     } else if (lightMode == LIGHTFLIGHT) {
       // Flugmodus
       paintFlightLights();
+    } else if (lightMode == LIGHTFLIGHTNAZA) {
+      paintLeftMotors(RED);
+      paintRightMotors(GREEN);
+      paintBackMotors(nazaLedColors[colorIndex]);
     } else if (lightMode == LIGHTPOLICE) {
       paintPoliceLights();
     } else if (lightMode == LIGHTLAND) {
@@ -116,6 +135,15 @@ void loop() {
   lastLightMode = lightMode;
   lastColorIndex = colorIndex;
   lastBrightness = brightness;
+
+  //Debug: Freies RAM ausgeben
+  //int freeMem = freeRam();
+  //Serial.print("Min free RAM: ");
+  //Serial.print(minFreeMem);
+  //Serial.print(", max. free RAM: ");
+  //Serial.print(maxFreeMem);
+  //Serial.print(", current free RAM: ");
+  //Serial.println(freeMem);
 }
 
 
@@ -219,42 +247,42 @@ void paintPoliceLights() {
   // Vorne schwarz, hinten langsam heller
   paintLeftMotors(BLACK);
   paintRightMotors(BLACK);
-  paintBackMotors(DIMWHITE);
+  paintBackMotors(PWHITE);
   paintExtraPixels(readNazaColorIndex());
   pixels.show();
   delayWithNazaLight(5);
   // Vorne rechts blau, hinten weiss
   paintLeftMotors(BLACK);
   paintRightMotors(BLUE);
-  paintBackMotors(WHITE);
+  paintBackMotors(DIMWHITE);
   paintExtraPixels(readNazaColorIndex());
   pixels.show();
   delayWithNazaLight(5);
   // Vorne schwarz, hinten weiss
   paintLeftMotors(BLACK);
   paintRightMotors(BLACK);
-  paintBackMotors(WHITE);
+  paintBackMotors(DIMWHITE);
   paintExtraPixels(readNazaColorIndex());
   pixels.show();
   delayWithNazaLight(10);
   // Nach etwas längerer Pause vorne links rot, hinten weiss
   paintLeftMotors(RED);
   paintRightMotors(BLACK);
-  paintBackMotors(WHITE);
+  paintBackMotors(DIMWHITE);
   paintExtraPixels(readNazaColorIndex());
   pixels.show();
   delayWithNazaLight(5);
   // Vorne schwarz, hinten langsam dunkler
   paintLeftMotors(BLACK);
   paintRightMotors(BLACK);
-  paintBackMotors(DIMWHITE);
+  paintBackMotors(PWHITE);
   paintExtraPixels(readNazaColorIndex());
   pixels.show();
   delayWithNazaLight(5);
   // Vorne links rot, hinten dunkler
   paintLeftMotors(RED);
   paintRightMotors(BLACK);
-  paintBackMotors(DIMWHITE);
+  paintBackMotors(PWHITE);
   paintExtraPixels(readNazaColorIndex());
   pixels.show();
   delayWithNazaLight(5);
@@ -268,6 +296,73 @@ void paintPoliceLights() {
 }
 
 /*
+ * Regenbogenlicht. Bei 256 LEDs würde der ganze Regenbogen aufs Mal angezeigt. Bei weniger LEDs wird nur ein Ausschnitt
+ * des Regenbogens angezeigt. Der gezeigte Ausschnitt verschiebt sich durch das Regenbogenspektrum.
+*/
+void paintRainbow() {
+  uint16_t i, j;
+
+  for (j = 0; j < 256; j++) {  // Durch das ganze Farbrad laufen
+    for (i = 0; i < MOTORS * LEDPERMOTOR; i++) {  // Bis zu 256 LEDs hat jede eine eigene Farbe, darüber wiederholt es sich
+      pixels.setPixelColor(i, Wheel((i + j) & 255));
+    }
+    // Extra LEDs mit Naza Farben malen
+    paintExtraPixels(readNazaColorIndex());
+    pixels.show();
+    // Zwischendurch prüfen, ob der Lichtmodus geändert hat.
+    if (checkChangedLightMode()) {
+      return;
+    }
+  }
+}
+
+/*
+ * Regenbogen, etwas anders. Der Regenbogen wird gestaucht, so dass immer 5 Mal der ganze Regenbogen mit
+ * den verfügbaren LEDs angezeigt wird. Die 5 Regenbögen "drehen" sich dabei um den Kopter rum.
+*/
+void paintRainbowCycle() {
+  uint16_t i, j;
+
+  for (j = 0; j < 256 * 5; j++) {
+    for (i = 0; i < MOTORS * LEDPERMOTOR; i++) {
+      pixels.setPixelColor(i, Wheel(((i * 256 / pixels.numPixels()) + j) & 255));
+    }
+    paintExtraPixels(readNazaColorIndex());
+    pixels.show();
+    if (checkChangedLightMode()) {
+      return;
+    }
+  }
+}
+
+// Rundumlaufendes Licht mit Farbwechsel
+void paintTheaterChaseRainbow() {
+  for (int j = 0; j < 256; j++) {   // Durch das ganze Farbrad durchlaufen
+    for (int q = 0; q < 5; q++) {
+      for (int i = 0; i < MOTORS * LEDPERMOTOR; i = i + 5) {
+        pixels.setPixelColor(i + q, Wheel( (i + j) % 255)); // Drei von fünf LEDs werden angeschaltet
+        pixels.setPixelColor(i + q + 1, Wheel( (i + j) % 255));
+        pixels.setPixelColor(i + q + 2, Wheel( (i + j) % 255));
+      } // Extra Lichter mit Naza Farbe malen
+      paintExtraPixels(readNazaColorIndex());
+      pixels.show();
+      // Zwischendurch immer wieder prüfen, ob inzwischen der Lichtmodus geändert hat.
+      if (checkChangedLightMode()) {
+        return;
+      }
+      // Kurze Pause
+      delayWithNazaLight(10);
+      // Die LEDs wieder ablöschen (Vorbereiten für den nächsten Durchlauf)
+      for (int i = 0; i < MOTORS * LEDPERMOTOR; i = i + 5) {
+        pixels.setPixelColor(i + q, 0);
+        pixels.setPixelColor(i + q + 1, 0);
+        pixels.setPixelColor(i + q + 1, 0);
+      }
+    }
+  }
+}
+
+/*
  * Man darf nicht zu lange Pausen machen, sonst ist das Extra-Licht unten am Kopter nicht mehr synchron zur Naza LED
  * Hilfsroutine, um die Pausen zu zerstückeln und zwischendurch, falls nötig, das Naza-Licht neu zu zeichnen.
  * Die Pausen sind max. 5ms, was ideal ist. Weniger macht die Pausen insgesamt zu lang, wodurch das Polizei-Licht
@@ -275,7 +370,7 @@ void paintPoliceLights() {
 */
 void delayWithNazaLight(unsigned long numTenMillis) {
   static unsigned long int lastColor = 0;
-  for (int i=0; i<numTenMillis; i++) {
+  for (int i = 0; i < numTenMillis; i++) {
     delay(10);
     unsigned long int color = readNazaColorIndex();
     if (lastColor != color) {
@@ -285,7 +380,23 @@ void delayWithNazaLight(unsigned long numTenMillis) {
     }
   }
 }
-  
+
+// Hilfsroutine, um eine Farbe aus einem "Farbrad" zu bekommen
+uint32_t Wheel(byte WheelPos) {
+  if (WheelPos < 85) {
+    // Erstes Drittel: Rot hoch, Grün runter, Blau off
+    return pixels.Color(WheelPos * 3, 255 - WheelPos * 3, 0);
+  } else if (WheelPos < 170) {
+    // Zweites Drittel: Rot wieder runter, Grün bleibt off, Blau hoch
+    WheelPos -= 85;
+    return pixels.Color(255 - WheelPos * 3, 0, WheelPos * 3);
+  } else {
+    // Letztes Drittel: Rot bleibt off, Grün wieder hoch, Blau wieder runter
+    WheelPos -= 170;
+    return pixels.Color(0, WheelPos * 3, 255 - WheelPos * 3);
+  }
+}
+
 
 /*
 * Malen der Zusatzpixel (z.B. Ring unten am Kopter)
@@ -319,7 +430,7 @@ byte readNazaColorIndex() {
 // Hilfsfunktionen zum Auslesen der Fernsteuerungs-Signale
 
 /*
- * Auslesen dines Kanals und normalisieren der Werte auf 0-15 (für max. 16 Lichtmodi)
+ * Auslesen des Kanals und normalisieren der Werte auf 0-15 (für max. 16 Lichtmodi)
  * Wer will kann höher gehen, aber es wird dann zunehmend schwieriger, einen bestimmten
  * Lichtmodus mit dem Poti anzusteuern.
 */
@@ -342,7 +453,7 @@ byte readRemoteRotary() {
 }
 
 /*
- * Auslesen des 3-Weg Switches, normalisieren auf Werte 0-2
+ * Auslesen des 3-Weg Schalters (Helligkeit), normalisieren auf Werte 0-2
 */
 byte readRemoteSwitch() {
   // Umrechnungsfaktor
@@ -355,6 +466,39 @@ byte readRemoteSwitch() {
   } else {
     return 1;
   }
+}
+
+/*
+ * Hilfsroutine um zu prüfen, ob seit dem letzten Aufruf der Lichtmodus verändert worden ist.
+ * An sich sollte man auch prüfen, ob die Helligkeit geändert hat. Dies dauert aber nochmals bis zu
+ * 20 Millisekunden, und stört das Regenbogenlicht noch mehr. Deshalb wird dies nicht gemacht.
+ * Dies hat zur Folge, dass ein Umschalten der Helligkeit erst nach ein paar Sekunden bemerkt wird.
+*/
+boolean checkChangedLightMode() {
+  static byte lastLightMode = 99;
+  byte lightMode = readRemoteRotary();
+  if (lightMode == lastLightMode) {
+    return false;
+  } else {
+    lastLightMode = lightMode;
+    return true;
+  }
+}
+
+/*
+ * Debug: Freies RAM
+*/
+int freeRam() {
+  extern int __heap_start, *__brkval;
+  int v;
+  int retVal = (int) &v - (__brkval == 0 ? (int) &__heap_start : (int) __brkval);
+  if (retVal > maxFreeMem) {
+    maxFreeMem = retVal;
+  }
+  if (retVal < minFreeMem) {
+    minFreeMem = retVal;
+  }
+  return retVal;
 }
 
 
