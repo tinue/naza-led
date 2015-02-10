@@ -1,31 +1,37 @@
 /*
- * Steuerprogramm für Adafruit Neopixels am Hexakopter.
- * Das Programm unterstützt drei Leucht-Modi:
- * - Naza LED duplizieren: Dabei blinken alle Motoren gleich wie die Naza LED
- * - Fluglage: Vorne links rot, vorne rechts grün und hinten weiss (TODO: Weiss blitzen, wie ein Flugzeug)
- * - Landelicht: Alle Arme leuchten weiss
+ * Steuerprogramm fuer Adafruit Neopixels am Multikopter.
+ * Mikrocontroller ist der ATtiny85. Grundstzlich funktioniert das Programm auch auf anderen
+ * ATMEL Mikrocontrollern, aber es muss angepasst werden (z.B. Name der Interrupt Service Routine,
+ * oder die Maskenbits fuer das Steuern der Interrupts).
  *
- * - Die Zusatz-LED (bei mir unten am Kopter angebracht) leuchtet immer wie die Naza LED.
+ * Das Programm unterstuetzt verschiedene Leucht-Modi (Regenbogen, Polizeilicht, etc.)
  *
- * Gesteuert wird der Leuchtmodus via Potentiometer an einem freien Kanal der Fernsteuerung. Dank Potentiometer gibt es ein paar Zusatzfunktionen:
+ * Bei einigen der Modi blinken auch LEDs im Takt und Farbe der Naza-LED
+ *
+ * Die Zusatz-LED (z.B. unten am Kopter angebracht) leuchtet in allen Modi synchron zur Naza LED.
+ *
+ * Gesteuert wird der Leuchtmodus via Potentiometer an einem freien Kanal der Fernsteuerung.
  * - Ganz links: Lichter aus (ausser Zusatz-LED)
- * - Pro Lichtmodus gibt es drei Helligkeitsstufen: 1/8, 1/4 und volle Helligkeit, je nach Stellung des Poti innerhalb des Bereiches für einen Lichtmodus.
+ * - Drehen nach rechts schaltet weiter um zwischen bis zu 16 Programmen
+ *
+ * Die Helligkeit der LEDs kann auf einen Schalter der Fernsteuerung gelegt werden.
  *
 */
 
 // Diese Konstanten müssen auf die eigene Konfiguration hin angepasst werden
 #include <Adafruit_NeoPixel.h>
-#define NAZARED A0 // Rotes LED Signal der Naza
-#define NAZAGREEN A1 // Gruenes LED Signal der Naza
-#define REMOTEROTARY A2 // Arduino-Eingang für den Kanal der Fernsteuerung (Potentiometer)
-#define REMOTESWITCH A3 // Arduino-Eingang für den 2. Kanal der Fernsteuerung (Schalter)-
-#define LEDOUT 13 // Datenleitung der LED Ringe
-#define MOTORS 6 // Anzahl Motoren (Annahme: Pro Motor jeweils gleichviel LEDs)
-#define LEDPERMOTOR 12 // Anzahl LEDs pro Motor
+#include "avr/interrupt.h"
+#define NAZARED 3 // Rotes LED Signal der Naza. ATtiny85 Pin 2
+#define NAZAGREEN 2 // Gruenes LED Signal der Naza. ATTiny85 Pin 3
+#define REMOTEROTARY 0 // Arduino-Eingang für den Kanal der Fernsteuerung (Potentiometer). ATtiny85 Pin 5
+#define REMOTESWITCH 1 // Arduino-Eingang für den 2. Kanal der Fernsteuerung (Schalter). ATtiny85 Pin 6
+#define LEDOUT 2 // Datenleitung der LED Ringe. ATtiny85 Pin 7
+#define MOTORS 4 // Anzahl Motoren (Annahme: Pro Motor jeweils gleichviel LEDs)
+#define LEDPERMOTOR 16 // Anzahl LEDs pro Motor
 #define EXTRALEDS 16 // Anzahl zusätzlicher LEDs am Ende (nach den LEDs der Motoren)
-#define MAXBRIGHTNESS 255 // Anpassen an Leistung der Stromversorgung! 255 = Anzahl LEDs mal 0.06A. Hier:  max. 5.28A. Gilt aber nur, wenn alle LEDs weiss leuchten.
-#define MINPULSE 984 // Minimale Pule-Länge am Empfänger in ns, muss ev. angepasst werden,
-#define MAXPULSE 2003 // Maximale Puls-Länge am Empfänger in ns. Beides gemessen an Frsky Taranis mit X8R Empfänger
+#define MAXBRIGHTNESS 255 // Anpassen an Leistung der Stromversorgung! 255 = Anzahl LEDs mal 0.06A. Gilt aber nur, wenn alle LEDs weiss leuchten.
+#define MINPULSE 984 // Minimale Pule-Länge am Empfänger in Mikrosekunden, muss ev. angepasst werden,
+#define MAXPULSE 2003 // Maximale Puls-Länge am Empfänger in Mikrosekunden. Beides gemessen an Frsky Taranis mit X8R Empfänger
 #define LOWERSWITCH 1200
 #define HIGHERSWITCH 1700 // Grenzen für Bestimmung der Schalterstellung
 
@@ -33,11 +39,11 @@
 #define LIGHTOFF 0 // Licht aus
 #define LIGHTNAZA 1 // Naza LED Modus
 #define LIGHTFLIGHT 2 // Flugmodus
-#define LIGHTFLIGHTNAZA 3
+#define LIGHTFLIGHTNAZA 3 // Naza/Flug gemischt
 #define LIGHTPOLICE 4 // Polizeilicht
 #define LIGHTRAINBOWA 5 // Regenbogen
 #define LIGHTRAINBOWB 6 // Regenbogen Variante 2
-#define LIGHTTHEATERCHASERAINBOW 7
+#define LIGHTTHEATERCHASERAINBOW 7 // Lauflicht
 #define LIGHTLAND 8 // Landelicht
 #define BLACK 0x000000 // Schwarz
 #define PWHITE 0x606060 // dunkles Weiss
@@ -52,49 +58,44 @@
 Adafruit_NeoPixel pixels = Adafruit_NeoPixel(MOTORS * LEDPERMOTOR + EXTRALEDS, LEDOUT, NEO_GRB + NEO_KHZ800);
 // Die vier möglichen Farben der Naza LED
 static const unsigned long int nazaLedColors[] = { BLACK, GREEN, RED, YELLOW };
-static int maxFreeMem = 0; // Debug: Maximales freies RAM
-static int minFreeMem = 32767; // Debug: Minimal freies RAM
+// Globale Variablen
+static byte lastLightMode = 99; // Letzte Werte merken. Dies, damit nur bei einer Aenderung neu gemalt werden muss
+static byte lastBrightness = 99;
+// Die naechsten Variablen werden in der Interrupt Service Routine gendert, deshalb sind sie global und volatile
+volatile static unsigned int rotaryPulse = 0;
+volatile static unsigned int switchPulse = 0;
+static boolean ignoreInterrupts = false;  // Setzen, solange Interrupts ignoriert werden muessen (wird in ISR geprueft)
 
 void setup() {
-  freeRam();
   pixels.begin();
   pixels.setBrightness(MAXBRIGHTNESS);
-  pixels.show(); // LEDs schwarz zu Beginn
-  Serial.begin(115200);  // Ent-kommentieren für Debug Zwecke.
-  pinMode(NAZAGREEN, INPUT);
-  pinMode(NAZARED, INPUT);
-  pinMode(REMOTEROTARY, INPUT);
-  pinMode(REMOTESWITCH, INPUT);
-  freeRam();
+  showPixels(); // LEDs schwarz zu Beginn
+  // Die folgenden Zeilen gelten nur fuer ATtiny85! Andere Mikrocontroller benoetigen andere Masken.
+  GIMSK = 0b00100000;    // ATtiny85: "pin change interrupts" aktivieren
+  PCMSK = 0b00000011;    // Fuer PB0 und PB1 (Fernsteuerung)
 }
 
 void loop() {
-  static byte lastLightMode = 99; // Letzte Werte merken. Meist muss nichts geändert werden, wenn sich keine der Werte ändert
-  static byte lastBrightness = 99;
-  static byte lastColorIndex = 99; // Wenn sich die Naza LED Farbe ändert muss zumindest die untere LED neu gemalt werden
+  static byte lastColorIndex = 99;
 
   // Lesen des Potis (0-15)
-  byte lightMode = readRemoteRotary();
-
+  byte lightMode = readLightMode();
   // Helligkeit bestimmen
-  byte switchState = readRemoteSwitch();
-  byte brightness;
-  if (switchState == 0) {
-    brightness = MAXBRIGHTNESS >> 3; // 1/8 max. Helligkeit
-  } else if (switchState == 1) {
-    brightness = MAXBRIGHTNESS >> 2; // 1/4 der maximalen Helligkeit
-  } else {
-    brightness = MAXBRIGHTNESS; // volle Helligkeit
-  }
+  byte brightness = readBrightness();
+  // Helligkeit schon mal setzen
   pixels.setBrightness(brightness);
 
   // Aktion nun je nach Lichtmodus
-  // "Statische" Modi können in einem Aufwasch gemalt werden, "dynamische" dauern länger
-  // Sie werden daher unterschiedlich behandelt
+  // Es gibt zwei Sorten von Lichtmodi:
+  // - Statisch: Die LEDs sind immer gleich (z.B. alle weiss, oder links rot, rechts gruen und hinten weiss)
+  // - Dynamisch: Die LEDs durchlaufen eine Sequenz (z.B. Regenbogen oder Polizeilicht). Die Sequenz kann eher kurz sein
+  //              (Polizeilicht, Lauflicht) oder mehrere Sekunden dauern (Regenbogen)
+  // Zunaechst die aktuelle Farbe der Naza LED bestimmen
   unsigned long int colorIndex = readNazaColorIndex();
+  // Jetzt pruefen, ob einer der aktiven Modi eingestellt ist. Wenn ja, eine Sequenz durchlaufen.
+  // Bei allen aktiven Modi werden die Zusatz-LEDs vom Modus selber gemalt. Dies deshalb, weil sich der Naza LED
+  // Status waehrend dem Durchlaufen von einer Sequenz mehrmals aendern kann.
   if (lightMode == LIGHTPOLICE) {
-    // Der Polizeilicht-Modus ist "aktiv" und muss daher immer gemalt werden.
-    // In dem Modus wird auch das malen der unteren LED direkt übernommen, dader Naza-Statusu mehrmals ausgelesen werden muss.
     paintPoliceLights();
   } else if (lightMode == LIGHTRAINBOWA) {
     paintRainbow();
@@ -102,48 +103,31 @@ void loop() {
     paintRainbowCycle();
   } else if (lightMode == LIGHTTHEATERCHASERAINBOW) {
     paintTheaterChaseRainbow();
-  } else if (lastColorIndex != colorIndex || lastLightMode != lightMode || lastBrightness != brightness) {
-    // Statische Modi
-    // Malen der Pixels nur, wenn sich gegenüber der letzten Runde etwas geändert hat.
+  } else if (checkChangedLightMode() || lastColorIndex != colorIndex || lastBrightness != brightness) {
+    // Bei den statischen Modi wird nur gemalt, wenn sich gegenüber der letzten Runde etwas geändert hat.
     if (lightMode == LIGHTOFF) {
-      // Lichter aus
       paintAllMotors(BLACK);
     } else if (lightMode == LIGHTNAZA) {
-      // Naza LED Modus
       paintAllMotors(nazaLedColors[colorIndex]);
     } else if (lightMode == LIGHTFLIGHT) {
-      // Flugmodus
       paintFlightLights();
     } else if (lightMode == LIGHTFLIGHTNAZA) {
       paintLeftMotors(RED);
       paintRightMotors(GREEN);
       paintBackMotors(nazaLedColors[colorIndex]);
-    } else if (lightMode == LIGHTPOLICE) {
-      paintPoliceLights();
     } else if (lightMode == LIGHTLAND) {
-      // Landelicht
       paintAllMotors(WHITE);
     } else {
       // Unbekannter Lichtmodus -> Schwarz.
       paintAllMotors(BLACK);
     }
-    // Unterer Ring malen, alle LEDs anzeigen
+    // Zuletzt die Zusatz-LEDs malen, und alle LEDs anzeigen
     paintExtraPixels(colorIndex);
-    pixels.show();
+    showPixels();
   }
   // Letzte Modi merken für die nächste Runde
-  lastLightMode = lightMode;
   lastColorIndex = colorIndex;
   lastBrightness = brightness;
-
-  //Debug: Freies RAM ausgeben
-  //int freeMem = freeRam();
-  //Serial.print("Min free RAM: ");
-  //Serial.print(minFreeMem);
-  //Serial.print(", max. free RAM: ");
-  //Serial.print(maxFreeMem);
-  //Serial.print(", current free RAM: ");
-  //Serial.println(freeMem);
 }
 
 
@@ -242,56 +226,56 @@ void paintPoliceLights() {
   paintRightMotors(BLUE);
   paintBackMotors(BLACK);
   paintExtraPixels(readNazaColorIndex());
-  pixels.show();
+  showPixels();
   delayWithNazaLight(5);
   // Vorne schwarz, hinten langsam heller
   paintLeftMotors(BLACK);
   paintRightMotors(BLACK);
   paintBackMotors(PWHITE);
   paintExtraPixels(readNazaColorIndex());
-  pixels.show();
+  showPixels();
   delayWithNazaLight(5);
   // Vorne rechts blau, hinten weiss
   paintLeftMotors(BLACK);
   paintRightMotors(BLUE);
   paintBackMotors(DIMWHITE);
   paintExtraPixels(readNazaColorIndex());
-  pixels.show();
+  showPixels();
   delayWithNazaLight(5);
   // Vorne schwarz, hinten weiss
   paintLeftMotors(BLACK);
   paintRightMotors(BLACK);
   paintBackMotors(DIMWHITE);
   paintExtraPixels(readNazaColorIndex());
-  pixels.show();
+  showPixels();
   delayWithNazaLight(10);
   // Nach etwas längerer Pause vorne links rot, hinten weiss
   paintLeftMotors(RED);
   paintRightMotors(BLACK);
   paintBackMotors(DIMWHITE);
   paintExtraPixels(readNazaColorIndex());
-  pixels.show();
+  showPixels();
   delayWithNazaLight(5);
   // Vorne schwarz, hinten langsam dunkler
   paintLeftMotors(BLACK);
   paintRightMotors(BLACK);
   paintBackMotors(PWHITE);
   paintExtraPixels(readNazaColorIndex());
-  pixels.show();
+  showPixels();
   delayWithNazaLight(5);
   // Vorne links rot, hinten dunkler
   paintLeftMotors(RED);
   paintRightMotors(BLACK);
   paintBackMotors(PWHITE);
   paintExtraPixels(readNazaColorIndex());
-  pixels.show();
+  showPixels();
   delayWithNazaLight(5);
   // Alles schwarz
   paintLeftMotors(BLACK);
   paintRightMotors(BLACK);
   paintBackMotors(BLACK);
   paintExtraPixels(readNazaColorIndex());
-  pixels.show();
+  showPixels();
   delayWithNazaLight(10);
 }
 
@@ -308,11 +292,12 @@ void paintRainbow() {
     }
     // Extra LEDs mit Naza Farben malen
     paintExtraPixels(readNazaColorIndex());
-    pixels.show();
+    showPixels();
     // Zwischendurch prüfen, ob der Lichtmodus geändert hat.
     if (checkChangedLightMode()) {
       return;
     }
+    delayWithNazaLight(5);
   }
 }
 
@@ -328,36 +313,37 @@ void paintRainbowCycle() {
       pixels.setPixelColor(i, Wheel(((i * 256 / pixels.numPixels()) + j) & 255));
     }
     paintExtraPixels(readNazaColorIndex());
-    pixels.show();
+    showPixels();
     if (checkChangedLightMode()) {
       return;
     }
+    delayWithNazaLight(2);
   }
 }
 
 // Rundumlaufendes Licht mit Farbwechsel
 void paintTheaterChaseRainbow() {
   for (int j = 0; j < 256; j++) {   // Durch das ganze Farbrad durchlaufen
-    for (int q = 0; q < 5; q++) {
-      for (int i = 0; i < MOTORS * LEDPERMOTOR; i = i + 5) {
-        pixels.setPixelColor(i + q, Wheel( (i + j) % 255)); // Drei von fünf LEDs werden angeschaltet
-        pixels.setPixelColor(i + q + 1, Wheel( (i + j) % 255));
-        pixels.setPixelColor(i + q + 2, Wheel( (i + j) % 255));
+    for (int q = 0; q < 7; q++) {
+      for (int i = 0; i < MOTORS * LEDPERMOTOR; i = i + 7) {
+        pixels.setPixelColor(i + q - 5, Wheel( (i + j) % 255)); // Drei von fünf LEDs werden angeschaltet
+        pixels.setPixelColor(i + q - 4, Wheel( (i + j) % 255));
+        pixels.setPixelColor(i + q - 3, Wheel( (i + j) % 255));
+        pixels.setPixelColor(i + q - 2, Wheel( (i + j) % 255));
+        pixels.setPixelColor(i + q - 1, Wheel( (i + j) % 255));
+        pixels.setPixelColor(i + q, BLACK);
+        pixels.setPixelColor(i + q + 1, BLACK);
       } // Extra Lichter mit Naza Farbe malen
       paintExtraPixels(readNazaColorIndex());
-      pixels.show();
+      // Ev. genderte Helligkeit nachfuehren
+      pixels.setBrightness(readBrightness());
+      showPixels();
       // Zwischendurch immer wieder prüfen, ob inzwischen der Lichtmodus geändert hat.
       if (checkChangedLightMode()) {
         return;
       }
       // Kurze Pause
-      delayWithNazaLight(10);
-      // Die LEDs wieder ablöschen (Vorbereiten für den nächsten Durchlauf)
-      for (int i = 0; i < MOTORS * LEDPERMOTOR; i = i + 5) {
-        pixels.setPixelColor(i + q, 0);
-        pixels.setPixelColor(i + q + 1, 0);
-        pixels.setPixelColor(i + q + 1, 0);
-      }
+      delayWithNazaLight(5);
     }
   }
 }
@@ -365,18 +351,20 @@ void paintTheaterChaseRainbow() {
 /*
  * Man darf nicht zu lange Pausen machen, sonst ist das Extra-Licht unten am Kopter nicht mehr synchron zur Naza LED
  * Hilfsroutine, um die Pausen zu zerstückeln und zwischendurch, falls nötig, das Naza-Licht neu zu zeichnen.
- * Die Pausen sind max. 5ms, was ideal ist. Weniger macht die Pausen insgesamt zu lang, wodurch das Polizei-Licht
+ * Die Pausen sind max. 10ms, was ideal ist. Weniger macht die Pausen insgesamt zu lang, wodurch das Polizei-Licht
  * nicht mehr schön aussieht, mehr führt zu deutlich sichtbaren Verzögerungen am unteren Licht.
 */
-void delayWithNazaLight(unsigned long numTenMillis) {
-  static unsigned long int lastColor = 0;
+void delayWithNazaLight(unsigned int numTenMillis) {
+  static byte lastColor = 0;
   for (int i = 0; i < numTenMillis; i++) {
     delay(10);
-    unsigned long int color = readNazaColorIndex();
+    byte color = readNazaColorIndex();
     if (lastColor != color) {
       paintExtraPixels(color);
-      pixels.show();
       lastColor = color;
+      // Ev. geaenderte Helligkeit nachfuehren
+      pixels.setBrightness(readBrightness());
+      showPixels();
     }
   }
 }
@@ -423,7 +411,7 @@ byte readNazaColorIndex() {
   int redInputRaw = analogRead(NAZARED);
   int greenInputRaw = analogRead(NAZAGREEN);
   // Umrechnen in den Index 0-3
-  byte colorIndex = (redInputRaw > 500) | ((greenInputRaw > 500) << 1);
+  byte colorIndex = ((redInputRaw > 500) << 1) | (greenInputRaw > 500);
   return colorIndex;
 }
 
@@ -432,12 +420,15 @@ byte readNazaColorIndex() {
 /*
  * Auslesen des Kanals und normalisieren der Werte auf 0-15 (für max. 16 Lichtmodi)
  * Wer will kann höher gehen, aber es wird dann zunehmend schwieriger, einen bestimmten
- * Lichtmodus mit dem Poti anzusteuern.
+ * Lichtmodus mit dem Poti zu treffen.
 */
-byte readRemoteRotary() {
+byte readLightMode() {
   // Umrechnungsfaktor
   static const float normalize = (MAXPULSE - MINPULSE) / 16.0;
-  unsigned long int pulseLength = pulseIn(REMOTEROTARY, HIGH, 21000); // Alle rund 20ms kommt ein Puls. Laenger = Kein Signal
+  // Puls wurde von der Interrupt Routine geschrieben
+  cli();
+  unsigned int pulseLength = rotaryPulse;
+  sei();
   byte lightMode;
   // Normalisieren Schritt 1: Start bei 0
   if (pulseLength >= MINPULSE) { // Zur Sicherheit: Falls MINPULSE zu hoch gewählt wurde.
@@ -453,52 +444,151 @@ byte readRemoteRotary() {
 }
 
 /*
- * Auslesen des 3-Weg Schalters (Helligkeit), normalisieren auf Werte 0-2
+ * Auslesen des 3-Weg Schalters (Helligkeit), daraus die Helligkeit ausrechnen
 */
-byte readRemoteSwitch() {
-  // Umrechnungsfaktor
-  unsigned long int pulseLength = pulseIn(REMOTESWITCH, HIGH, 21000); // Alle rund 20ms kommt ein Puls. Laenger = Kein Signal
-  // Normalisieren Schritt 1: Start bei 0
+byte readBrightness() {
+  cli();
+  unsigned int pulseLength = switchPulse;
+  sei();
+  // Schalter unten
   if (pulseLength < LOWERSWITCH) {
-    return 0;
+    return MAXBRIGHTNESS >> 3; // 1/8 max. Helligkeit;
   } else if (pulseLength > HIGHERSWITCH) {
-    return 2;
+    // Schalter oben
+    return MAXBRIGHTNESS;
   } else {
-    return 1;
+    // Schalter in der Mitte
+    return MAXBRIGHTNESS >> 2;
+  }
+}
+
+
+/*
+ * Die Interrupt Service Routine ist spezifisch fuer den ATtiny85. Fuer einen anderen
+ * Mikroprozessor muss dies geaendert werden.
+ * PB0 oder PB1 haben einen Interrupt ausgeloest
+ *  Dies passiert 2 Mal pro 20ms. Deshalb muss die Routine sehr schnell ablaufen und
+ *  darf nicht blockieren.
+*/
+ISR(PCINT0_vect) {
+  static unsigned long rotaryStart = 0; // Zaehler fuer Poti-Impulslaenge
+  static unsigned long switchStart = 0; // Zaehler fuer Schalter-Impulslaenge
+  static boolean lastPB0 = false; // Letzter Status von PB0 (Pin 5)
+  static boolean lastPB1 = false; // Letzter Status von PB1 (Pin 6)
+
+  // Ein Interrupt der waehrend pixels.show() aufgetreten ist waere zu spaet und muss deshalb ignoriert werden.
+  if (ignoreInterrupts) {
+    return;  // Der Interrupt wird so geloescht
+  }
+
+  boolean currentPB0 = ((PINB & 0b00000001) != 0); // Aktueller Status von PB0
+  boolean currentPB1 = ((PINB & 0b00000010) != 0); // Aktueller Status von PB1
+
+  // zu Beginn die Zeit nehmen
+  unsigned long currentTime = micros();
+
+  // PB0
+  if (currentPB0 != lastPB0) {
+    // Pin PB0 hat gendert
+    lastPB0 = currentPB0;
+    if (currentPB0) {
+      // Port PB0 0 -> 1, Messung starten
+      rotaryStart = currentTime;
+    } else {
+      // Port PB0 1 -> 0
+      if (currentTime < rotaryStart) {
+        // micros() ist ueberlaufen, daher nichts veraendern
+        return;
+      }
+      unsigned int pulseLength = (unsigned int)(currentTime - rotaryStart);
+      if (pulseLength > (MAXPULSE + 500)) {
+        // Wir haben Interrupts verpasst
+        // Nichts machen und bei der naechsten Runde neu anfangen
+        return;
+      }
+      // Hier sollte der Puls stimmen, daher setzen
+      rotaryPulse = pulseLength;
+    }
+  }
+  // PB1
+  if (currentPB1 != lastPB1) {
+    // Pin PB1 hat gendert
+    lastPB1 = currentPB1;
+    if (currentPB1) {
+      // Port PB1 0 -> 1, Messung starten
+      switchStart = currentTime;
+    } else {
+      // Port PB1 1 -> 0
+      if (currentTime < switchStart) {
+        // micros() ist ueberlaufen, daher nichts veraendern
+        return;
+      }
+      unsigned int pulseLength = (unsigned int)(currentTime - switchStart);
+      if (pulseLength > (MAXPULSE + 500)) {
+        // Wir haben Interrupts verpasst
+        // Nichts machen und bei der naechsten Runde neu anfangen
+        return;
+      }
+      // Hier sollte der Puls stimmen, daher setzen
+      switchPulse = pulseLength;
+    }
   }
 }
 
 /*
- * Hilfsroutine um zu prüfen, ob seit dem letzten Aufruf der Lichtmodus verändert worden ist.
- * An sich sollte man auch prüfen, ob die Helligkeit geändert hat. Dies dauert aber nochmals bis zu
- * 20 Millisekunden, und stört das Regenbogenlicht noch mehr. Deshalb wird dies nicht gemacht.
- * Dies hat zur Folge, dass ein Umschalten der Helligkeit erst nach ein paar Sekunden bemerkt wird.
+ * Hilfsroutine um die Pixels anzuzeigen, und waehrenddessen die Interrupts zu ingorieren
+ *
+ * Dies muss sein, da die NeoPixel Library "cli" und "sei" rund um den "show()" call hat.
+ * Dies fuehrt dazu, dass die Interrupts fuer eine Weile ausgesetzt werden. Am Ende, nachdem
+ * "sei" aufgerufen wurde von der Library wird ein ev. faelliger Interrupt gleich ausgefuehrt.
+ * Dies ist aber nicht gut: Da die Laenge eines Pulses gemessen werden muss darf der Interrupt
+ * nicht verzoegert aufgerufen werden: Der Puls wuerde so zu kurz oder zu lang gemmessen.
+ * Deshalb soll ein Interrupt, der waehrend show() aufgetreten ist, ignoriert werden.
+*/
+void showPixels() {
+  ignoreInterrupts = true;
+  pixels.show();  // suspends and possibly caches interrupts
+  ignoreInterrupts = false;
+}
+
+/*
+ * Hilfsroutine um zu prüfen, ob seit dem letzten Aufruf der Lichtmodus veraendert worden ist.
+ * Dazu wird eine allenfalls geaenderte Helligkeit direkt angepasst.
+ * Die Routine wird von den "langen" Sequenzen (z.B: Regenbogen) zwischendurch aufgerufen um
+ * zu sehen, ob sie Sequenz abgebrochen werden muss.
+ *
+ * Trotz allem "aufpassen" bei den Interrupts gibt es immer wieder Faelle, bei dem ein Mal
+ * ein falscher Lichtmodus gelesen wird. Dies stoert, weil dann z.B. der Regenbogen neu angefangen
+ * wird. Dies sieht nicht schoen aus. Weshalb dieser eine falsche Wert kommt konnte ich bisher
+ * nicht herausfinden. Deshalb hat diese Pruefroutine eine Umgehungsloesung implementiert:
+ * Erst wenn zwei Mal hintereinander derselbe Wert gelesen wird, wird der Wert ueberhaupt
+ * ausgewertet.
+ *
 */
 boolean checkChangedLightMode() {
-  static byte lastLightMode = 99;
-  byte lightMode = readRemoteRotary();
-  if (lightMode == lastLightMode) {
-    return false;
+  static byte lastReading = 99;
+  // Allenfalls geaenderte Helligkeit nachfuehren
+  byte brightness = readBrightness();
+  if (brightness != lastBrightness) {
+    lastBrightness = brightness;
+    pixels.setBrightness(brightness);
+  }
+  byte lightMode = readLightMode();
+  if (lastReading == lightMode) {
+    // Zweimal hintereinander dasselbe gelesen, deshalb den Wert verwenden
+    if (lightMode == lastLightMode) {
+      // Keine Aenderung
+      return false;
+    } else {
+      // Lichtmodus hat geaendert
+      lastLightMode = lightMode;
+      return true;
+    }
   } else {
-    lastLightMode = lightMode;
-    return true;
+    // Einmal geaendert gegenueber letzem Mal, vorerst ignorieren
+    lastReading = lightMode;
+    return false;
   }
-}
-
-/*
- * Debug: Freies RAM
-*/
-int freeRam() {
-  extern int __heap_start, *__brkval;
-  int v;
-  int retVal = (int) &v - (__brkval == 0 ? (int) &__heap_start : (int) __brkval);
-  if (retVal > maxFreeMem) {
-    maxFreeMem = retVal;
-  }
-  if (retVal < minFreeMem) {
-    minFreeMem = retVal;
-  }
-  return retVal;
 }
 
 
