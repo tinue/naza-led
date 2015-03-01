@@ -5,6 +5,9 @@ Homepage des Projektes ist http://tinue.github.io/naza-led
 
 Versionsnachweis:
 
+- 1. März 2015
+ - NazaLEDSimulator eingecheckt.
+ - Keine Änderungen beim NazaLED
 - 10. Februar 2015
  - Umgestellt auf ATtiny85 als Mikroprozessor. Arduino Pro Mini läuft nicht mehr ohne Änderungen.
  - Abfrage der Fernsteuerung via Interrupt, anstelle von Polling (pulseIn). Die Naza LED wird so auch
