@@ -2,6 +2,7 @@ naza-led
 ========
 
 Homepage des Projektes ist http://tinue.github.io/naza-led
+Der Simulator ist hier beschrieben: http://blog.erzberger.ch/multikopter-led-simulator
 
 Versionsnachweis:
 
