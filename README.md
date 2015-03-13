@@ -7,6 +7,8 @@ Der Simulator ist hier beschrieben: http://blog.erzberger.ch/multikopter-led-sim
 
 Versionsnachweis:
 
+- 13. März 2015
+ - NazaLED kompiliert (und läuft) nun für ATtiny85, und auch wieder für ATmega328
 - 1. März 2015
  - NazaLEDSimulator eingecheckt.
  - Keine Änderungen beim NazaLED

@@ -21,11 +21,21 @@
 // Diese Konstanten müssen auf die eigene Konfiguration hin angepasst werden
 #include <Adafruit_NeoPixel.h>
 #include "avr/interrupt.h"
-#define NAZARED 3 // Rotes LED Signal der Naza. ATtiny85 Pin 2
-#define NAZAGREEN 2 // Gruenes LED Signal der Naza. ATTiny85 Pin 3
-#define REMOTEROTARY 0 // Arduino-Eingang für den Kanal der Fernsteuerung (Potentiometer). ATtiny85 Pin 5
-#define REMOTESWITCH 1 // Arduino-Eingang für den 2. Kanal der Fernsteuerung (Schalter). ATtiny85 Pin 6
-#define LEDOUT 2 // Datenleitung der LED Ringe. ATtiny85 Pin 7
+#if defined (__AVR_ATtiny85__)
+  #define NAZARED 3 // Rotes LED Signal der Naza. ATtiny85 Pin 2
+  #define NAZAGREEN 2 // Gruenes LED Signal der Naza. ATTiny85 Pin 3
+  #define REMOTEROTARY 0 // Arduino-Eingang für den Kanal der Fernsteuerung (Potentiometer). ATtiny85 Pin 5
+  #define REMOTESWITCH 1 // Arduino-Eingang für den 2. Kanal der Fernsteuerung (Schalter). ATtiny85 Pin 6
+  #define LEDOUT 2 // Datenleitung der LED Ringe. ATtiny85 Pin 7
+  #define VECTOR PCINT0_vect // Interrupt Vektor, der zu beobachten ist
+#else
+  #define NAZARED A0 // Rotes LED Signal der Naza.
+  #define NAZAGREEN A1 // Gruenes LED Signal der Naza.
+  #define REMOTEROTARY A2 // Arduino-Eingang für den Kanal der Fernsteuerung (Potentiometer).
+  #define REMOTESWITCH A3 // Arduino-Eingang für den 2. Kanal der Fernsteuerung (Schalter).
+  #define LEDOUT 13 // Datenleitung der LED Ringe.
+  #define VECTOR PCINT1_vect // Interrupt Vektor, der zu beobachten ist
+#endif
 #define MOTORS 4 // Anzahl Motoren (Annahme: Pro Motor jeweils gleichviel LEDs)
 #define LEDPERMOTOR 16 // Anzahl LEDs pro Motor
 #define EXTRALEDS 16 // Anzahl zusätzlicher LEDs am Ende (nach den LEDs der Motoren)
@@ -67,12 +77,24 @@ volatile static unsigned int switchPulse = 0;
 static boolean ignoreInterrupts = false;  // Setzen, solange Interrupts ignoriert werden muessen (wird in ISR geprueft)
 
 void setup() {
+  pinMode(NAZARED, INPUT);
+  pinMode(NAZAGREEN, INPUT);
+  pinMode(REMOTEROTARY, INPUT);
+  pinMode(REMOTESWITCH, INPUT);
+  pinMode(LEDOUT, OUTPUT);
   pixels.begin();
   pixels.setBrightness(MAXBRIGHTNESS);
   showPixels(); // LEDs schwarz zu Beginn
-  // Die folgenden Zeilen gelten nur fuer ATtiny85! Andere Mikrocontroller benoetigen andere Masken.
-  GIMSK = 0b00100000;    // ATtiny85: "pin change interrupts" aktivieren
-  PCMSK = 0b00000011;    // Fuer PB0 und PB1 (Fernsteuerung)
+  #if defined (__AVR_ATtiny85__)
+    // Die folgenden Zeilen gelten nur fuer ATtiny85! Andere Mikrocontroller benoetigen andere Masken.
+    GIMSK = 0b00100000;    // ATtiny85: "pin change interrupts" aktivieren
+    PCMSK = 0b00000011;    // Fuer PB0 und PB1 (Fernsteuerung)
+  #else
+    // Dies gilt fuer ATMega328
+    PCICR |= (1 << PCIE1);    // Enable PCMSK1 scan (A2 und A3 sind hier dabei)
+    PCMSK1 |= (1 << PCINT10);  // A2 
+    PCMSK1 |= (1 << PCINT11);  // A3    
+  #endif
 }
 
 void loop() {
@@ -411,7 +433,7 @@ byte readNazaColorIndex() {
   int redInputRaw = analogRead(NAZARED);
   int greenInputRaw = analogRead(NAZAGREEN);
   // Umrechnen in den Index 0-3
-  byte colorIndex = ((redInputRaw > 500) << 1) | (greenInputRaw > 500);
+  byte colorIndex = ((redInputRaw > 300) << 1) | (greenInputRaw > 300);
   return colorIndex;
 }
 
@@ -462,40 +484,37 @@ byte readBrightness() {
   }
 }
 
-
 /*
- * Die Interrupt Service Routine ist spezifisch fuer den ATtiny85. Fuer einen anderen
- * Mikroprozessor muss dies geaendert werden.
- * PB0 oder PB1 haben einen Interrupt ausgeloest
- *  Dies passiert 2 Mal pro 20ms. Deshalb muss die Routine sehr schnell ablaufen und
- *  darf nicht blockieren.
+ * Einer der beiden Fernsteuerung-Pins hat einen Interrupt ausgeloest
+ * Dies passiert 2 Mal pro 20ms. Deshalb muss die Routine sehr schnell ablaufen und
+ * darf nicht blockieren.
 */
-ISR(PCINT0_vect) {
+ISR(VECTOR) {
   static unsigned long rotaryStart = 0; // Zaehler fuer Poti-Impulslaenge
   static unsigned long switchStart = 0; // Zaehler fuer Schalter-Impulslaenge
-  static boolean lastPB0 = false; // Letzter Status von PB0 (Pin 5)
-  static boolean lastPB1 = false; // Letzter Status von PB1 (Pin 6)
+  static boolean lastRotary = false; // Letzter Status vom Poti
+  static boolean lastSwitch = false; // Letzter Status vom Schalter
 
   // Ein Interrupt der waehrend pixels.show() aufgetreten ist waere zu spaet und muss deshalb ignoriert werden.
   if (ignoreInterrupts) {
     return;  // Der Interrupt wird so geloescht
   }
 
-  boolean currentPB0 = ((PINB & 0b00000001) != 0); // Aktueller Status von PB0
-  boolean currentPB1 = ((PINB & 0b00000010) != 0); // Aktueller Status von PB1
+  boolean currentRotary = digitalRead(REMOTEROTARY); // Aktuelle Werte auslesen und cachen
+  boolean currentSwitch = digitalRead(REMOTESWITCH);
 
   // zu Beginn die Zeit nehmen
   unsigned long currentTime = micros();
 
-  // PB0
-  if (currentPB0 != lastPB0) {
-    // Pin PB0 hat gendert
-    lastPB0 = currentPB0;
-    if (currentPB0) {
-      // Port PB0 0 -> 1, Messung starten
+  // Drehknopf
+  if (currentRotary != lastRotary) {
+    // Pin vom Poti hat geaendert
+    lastRotary = currentRotary;
+    if (currentRotary) {
+      // Poti Pin 0 -> 1, Messung starten
       rotaryStart = currentTime;
     } else {
-      // Port PB0 1 -> 0
+      // Poti Pin 1 -> 0
       if (currentTime < rotaryStart) {
         // micros() ist ueberlaufen, daher nichts veraendern
         return;
@@ -510,15 +529,15 @@ ISR(PCINT0_vect) {
       rotaryPulse = pulseLength;
     }
   }
-  // PB1
-  if (currentPB1 != lastPB1) {
-    // Pin PB1 hat gendert
-    lastPB1 = currentPB1;
-    if (currentPB1) {
-      // Port PB1 0 -> 1, Messung starten
+  // Schalter
+  if (currentSwitch != lastSwitch) {
+    // Pin von Schalter hat gendert
+    lastSwitch = currentSwitch;
+    if (currentSwitch) {
+      // Schalter Pin 0 -> 1, Messung starten
       switchStart = currentTime;
     } else {
-      // Port PB1 1 -> 0
+      // Schalter Pin 1 -> 0
       if (currentTime < switchStart) {
         // micros() ist ueberlaufen, daher nichts veraendern
         return;
