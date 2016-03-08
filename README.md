@@ -1,6 +1,12 @@
 naza-led
 ========
 
+---
+**Hinweis**: Dieses Projekt wird nicht mehr weiter gepflegt. Zum einen habe ich keinen Naza Flightcontroller
+mehr, und zum anderen kaum noch WS2812 LEDs. Falls jemand die Bibliothek übernehmen und weiterentwickeln möchte,
+möge er/sie sich ungeniert melden: Gerne übergebe ich den Code an ein neues "Heim".
+---
+
 Homepage des Projektes ist http://tinue.github.io/naza-led
 
 Der Simulator ist hier beschrieben: http://blog.erzberger.ch/multikopter-led-simulator
